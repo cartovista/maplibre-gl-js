@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>MapLibre GL MVT Test</title>
+    <link rel='stylesheet' href='../../dist/maplibre-gl.css' />
+    <script src='../../dist/maplibre-gl-dev.js'></script>
+    <style>
+        body { margin: 0; padding: 0; }
+        html, body, #map { height: 100%; }
+        .mapboxgl-popup-content {
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    color: #333;
+}
+    </style>
+    
+</head>
+<body>
+    <div id="map"></div>
+    <script>
+
+const map = new maplibregl.Map({
+    container: 'map', // HTML container ID
+    style: {
+        'version': 8,
+        'sources': {
+            'osm': {
+                'type': 'raster',
+                'tiles': [
+                    'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'
+                ],
+                'tileSize': 256,
+                'attribution': '© OpenStreetMap contributors'
+            },
+            'mvt-source': {
+                'type': 'vector',
+                'tiles': ['http://localhost:3000/mvt/Palos_Verdes_InSAR_points/{z}/{x}/{y}'],
+                'minzoom': 0,
+                'maxzoom': 22 // Adjust based on your data
+            }
+        },
+        'layers': [
+            {
+                'id': 'osm-layer',
+                'type': 'raster',
+                'source': 'osm'
+            },
+            {
+                'id': 'disp-layer',
+                'type': 'circle',
+                'source': 'mvt-source',
+                'blendMode': 'NORMAL',
+                'source-layer': 'Palos_Verdes_InSAR_points', // Match the name defined in your MVT
+                paint: {
+                    // Dynamic circle radius based on zoom level
+                    'circle-radius': [
+                        'interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        0, 1,   // At zoom level 0, circle radius is 2
+                        8, 1,   // At zoom level 0, circle radius is 2
+                        9, 2,   // At zoom level 0, circle radius is 2
+                        10, 2,  // At zoom level 10, circle radius is 5
+                        11, 2,  // At zoom level 10, circle radius is 5
+                        12, 2,  // At zoom level 10, circle radius is 5
+                        13, 3,  // At zoom level 10, circle radius is 5
+                        14, 4,  // At zoom level 10, circle radius is 5
+                        15, 6,  // At zoom level 15, circle radius is 10
+                        16, 8,  // At zoom level 15, circle radius is 10
+                        17, 10  // At zoom level 15, circle radius is 10
+                    ],
+
+                    // Circle color based on the "value" field
+                    'circle-color': [
+                        'interpolate',
+                        ['linear'],
+                        ['get', 'value'],
+                        0, '#e0f7e0',  // Light green
+                        10, '#a3d9a3',
+                        20, '#66bb66',
+                        50, '#339933',
+                        100, '#006600' // Dark green
+                    ],
+
+                    // Optional: Circle stroke for better visibility
+                    //"circle-stroke-width": 1,
+                    //"circle-stroke-color": "#000000"
+                }
+            }
+        ]
+    },
+    center: [-118.33744656221326, 33.780291198388156], // Starting position [longitude, latitude]
+    zoom: 10 // Starting zoom level
+});
+
+// Add a click event listener for the point layer
+map.on('click', 'disp-layer', (e) => {
+    //console.log('click event...');
+    // Get latitude and longitude from the event
+    const {lng, lat} = e.lngLat;
+    // Log or use the coordinates
+    console.log(`Longitude: ${lng}, Latitude: ${lat}`);
+    // Check if features exist at the clicked location
+    if (e.features.length > 0) {
+        // Access the value
+        const value = e.features[0].properties.value;
+
+        // Display the value (e.g., in a popup or console)
+        new maplibregl.Popup()
+            .setLngLat(e.lngLat)
+            .setHTML(`<strong>Displacement:</strong> ${value}`)
+            .addTo(map);
+
+        console.log('Value:', value);
+    }
+});
+
+    </script>
+</body>
+</html>

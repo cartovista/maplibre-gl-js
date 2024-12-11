@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>MapLibre GL MVT Test</title>
+    <link rel='stylesheet' href='../../dist/maplibre-gl.css' />
+    <script src='../../dist/maplibre-gl-dev.js'></script>
+    <script src="https://www.unpkg.com/turf@3.0.14/turf.min.js"></script>
+    <script src="https://www.unpkg.com/@mapbox/mapbox-gl-draw@1.4.3/dist/mapbox-gl-draw.js"></script>
+    <link
+        rel="stylesheet"
+        href="https://www.unpkg.com/@mapbox/mapbox-gl-draw@1.4.3/dist/mapbox-gl-draw.css"
+    />
+    
+      <style>
+        body { margin: 0; padding: 0; }
+        html, body, #map { height: 100%; }
+        .mapboxgl-popup-content {
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    color: #333;
+}
+    </style>
+    
+</head>
+<body>
+    <div id="map"></div>
+    <script type="module">
+    MapboxDraw.constants.classes.CONTROL_BASE  = 'maplibregl-ctrl';
+    MapboxDraw.constants.classes.CONTROL_PREFIX = 'maplibregl-ctrl-';
+    MapboxDraw.constants.classes.CONTROL_GROUP = 'maplibregl-ctrl-group';
+
+    let hoveredPolygonId = null;
+
+    const map = new maplibregl.Map({
+    container: 'map', // HTML container ID
+    style: {
+            'version': 8,
+            'sources': {
+                'openmaptiles': {
+                    'url': 'https://api.maptiler.com/tiles/v3/tiles.json?key=get_your_own_OpIi9ZULNHzrESv6T2vL',
+                    'type': 'vector'
+                },
+                'osm': {
+                    'type': 'raster',
+                    'tiles': [
+                        'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'
+                    ],
+                    'tileSize': 256,
+                    'attribution': '© OpenStreetMap contributors'
+                },
+                'here': {
+                    'type': 'raster',
+                    'tiles': [
+                        'https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=lite.day&lang=en&apiKey=8P_kbNDELB6ADBwC9oCoLd3Gd_C0gnan8TCvoNT1Wfg'
+                    ],
+                    'tileSize': 256,
+                    'attribution': '© Heremaps'
+                },
+                'mvt': {
+                    'type': 'vector',
+                    'tiles': ['http://localhost:3000/mvt/us_blockgroups/{z}/{x}/{y}'],
+                    'minzoom': 0,
+                    'maxzoom': 22, // Adjust based on the data
+                    'promoteId': {
+                        'us_blockgroups': 'id' // Map the 'id' property in 'us_blockgroups' to feature.id in MapBox
+                    }
+                }
+            },
+            'glyphs': 'http://localhost/maplibre/fonts/{fontstack}/{range}.pbf',
+            'layers': [
+                {
+                    'id': 'background',
+                    'type': 'background',
+                    'layout': {
+                        'visibility': 'visible'
+                    },
+                    'paint': {
+                        'background-color': {
+                            'stops': [
+                                [
+                                    6,
+                                    'rgba(252, 247, 229, 1)'
+                                ],
+                                [
+                                    10,
+                                    'rgba(252, 247, 229, 1)'
+                                ],
+                                [
+                                    14,
+                                    'rgba(246, 241, 229, 1)'
+                                ],
+                                [
+                                    15,
+                                    'rgba(246, 241, 229, 1)'
+                                ]
+                            ]
+                        }
+                    }
+                },
+                {
+                    'id': 'here-basemap',
+                    'type': 'raster',
+                    'source': 'here',
+                    paint: {
+                        'raster-opacity': 1,
+                        'raster-saturation': -0.5 // Grayscale effect
+                    }
+                },
+                {
+                    'id': 'landcover_grass',
+                    'type': 'fill',
+                    'source': 'openmaptiles',
+                    'source-layer': 'landcover',
+                    'layout': {
+                        'visibility': 'visible'
+                    },
+                    'paint': {
+                        'fill-color': 'rgba(294, 192, 201, 1)',
+                        'fill-opacity': 0.6,
+                        'fill-antialias': false
+                    },
+                    'metadata': {},
+                    'filter': [
+                        'all',
+                        [
+                            '==',
+                            'class',
+                            'grass'
+                        ]
+                    ]
+                },
+                {
+                    'id': 'blockgroups-layer-fill',
+                    'type': 'fill',
+                    'source': 'mvt',
+                    'blendMode': 'MULTIPLY',
+                    'layout': {},
+                    'source-layer': 'us_blockgroups', // Match the name defined in the MVT source
+                    paint: {
+                        'fill-color': [
+                            'case',
+                            ['boolean', ['feature-state', 'hover'], false], // If hovered
+                            '#34a34f',                                       // Use hover color
+                            [
+                                'step',
+                                ['get', 'value'], // Ensure 'value' is numeric
+                                '#e0f7e0',        // Default color
+                                1000, '#c2e5c2',    // Color for 1000 <= value < 2000
+                                2000, '#81c781'    // Color for value >= 2000
+                            ]
+                        ],
+                        'fill-opacity': [
+                            'case',
+                            ['boolean', ['feature-state', 'hover'], false],
+                            0.7,
+                            0.5
+                        ]/* ,
+                        'fill-outline-color': [   //This can be used if we have a simple 1 px solid stroke on polygons....
+                            'case',
+                            ['boolean', ['feature-state', 'hover'], false],
+                            '#000000',
+                            '#ffffff'
+                        ] */
+                    }
+                },
+    
+                {
+                    'id': 'blockgroups-layer-selection',
+                    'type': 'fill',
+                    'source': 'mvt',
+                    'blendMode': 'MULTIPLY',
+                    'source-layer': 'us_blockgroups', // Match the name defined in the MVT source
+                    paint: {
+                        'fill-color': '#ed6b21',
+                        'fill-opacity': 0.5
+                    },
+                    'filter': ['in', 'id', ''] // Initially no polygon are selected
+                },
+                {
+                    'id': 'blockgroups-layer-line',     //Used to draw the layer stroke....
+                    'type': 'line',
+                    'source': 'mvt',
+                    'layout': {},
+                    'blendMode': 'MULTIPLY',
+                    'source-layer': 'us_blockgroups', // Match the name defined in the MVT source
+                    paint: {
+                        'line-color': '#49BC99',
+                        'line-width': 1,
+                        'line-opacity': 0.5
+                    }
+                },
+                {
+                    'id': 'blockgroups-layer-labels',
+                    'type': 'symbol',
+                    'source': 'mvt',
+                    'source-layer': 'us_blockgroups',
+                    'blendMode': 'MULTIPLY',
+                    'layout': {
+                        'text-field': ['get', 'value'], // Directly render the 'value' field
+                        'text-font': ['Poppins Regular'],
+                        'text-size': 13,
+                        'text-letter-spacing': 0,
+                        'text-allow-overlap': false, // Prevents overlapping labels
+                        'symbol-placement': 'point'
+                    },
+                    'paint': {
+                        'text-color': 'black',
+                        'text-opacity': 1
+                        //'text-halo-color': '#00ffff',
+                        //'text-halo-blur': 1,
+                        //'text-halo-width': 2
+                    }
+                },
+            ]
+    },
+    center: [-118.33744656221326, 33.780291198388156], // Starting position [longitude, latitude]
+    zoom: 12, // Starting zoom level
+    interactive: true
+});
+
+const draw = new MapboxDraw({
+        displayControlsDefault: false,
+        // Select which mapbox-gl-draw control buttons to add to the map.
+        controls: {
+            polygon: true,
+            trash: true
+        },
+        // Set mapbox-gl-draw to draw by default.
+        // The user does not have to click the polygon control button first.
+        defaultMode: 'draw_polygon'
+});
+map.addControl(draw);
+
+map.addControl(new maplibregl.NavigationControl());
+
+function updateSelection(e) {
+    const userPolygon = e.features[0].geometry; // User-drawn polygon geometry
+
+    // Query intersecting features (using queryRenderedFeatures)
+
+    const features = map.queryRenderedFeatures(undefined, {
+            layers: ['blockgroups-layer-fill']
+    });
+
+    // Find intersecting features
+    const intersectingFeatures = features.filter((feature) => {
+    return turf.intersect(userPolygon, feature.geometry);
+    });
+
+    // Get the IDs of intersecting features
+    const selectedIds = intersectingFeatures.map(feature => feature.properties.id);
+
+    // Update the selection layer filter
+    map.setFilter('blockgroups-layer-selection', ['in', 'id', ...selectedIds]);
+
+    // Log intersecting features
+    console.log('Selected features:', intersectingFeatures);
+}
+
+// Listen for when a polygon is drawn
+
+map.on('draw.create', updateSelection);
+map.on('draw.update', updateSelection);
+
+// Listen for when a polygon is deleted
+map.on('draw.delete', (e) => {
+    console.log('draw polygon deleted...');
+    map.setFilter('blockgroups-layer-selection', ['in', 'id', '']);
+
+});
+
+// Add a click event listener for the polygon layer
+map.on('click', 'blockgroups-layer-fill', (e) => {
+    //console.log('click event...');
+    // Get latitude and longitude from the event
+    const {lng, lat} = e.lngLat;
+    // Log or use the coordinates
+    console.log(`Longitude: ${lng}, Latitude: ${lat}`);
+    // Check if features exist at the clicked location
+    if (e.features.length > 0) {
+            // Access the value
+            const value = e.features[0].properties.value;
+
+            // Display the value (e.g., in a popup or console)
+            new maplibregl.Popup()
+                .setLngLat(e.lngLat)
+                .setHTML(`<strong>Value:</strong> ${value}`)
+                .addTo(map);
+
+            console.log(e.features[0].properties);
+    }
+});
+
+// When the user moves their mouse over the blockgroups-layer layer, we'll update the
+    // feature state for the feature under the mouse.
+    map.on('mousemove', 'blockgroups-layer-fill', (e) => {
+        if (e.features.length > 0) {
+            if (hoveredPolygonId != undefined) {
+                map.setFeatureState(
+                    {source: 'mvt', sourceLayer: 'us_blockgroups', id: hoveredPolygonId},
+                    {hover: false}
+                );
+            }
+    
+            hoveredPolygonId = e.features[0].properties.id;
+            //console.log(hoveredPolygonId);
+            map.setFeatureState(
+                {source: 'mvt', sourceLayer: 'us_blockgroups', id: hoveredPolygonId},
+                {hover: true}
+            );
+            //console.log(e.features[0]);
+        }
+    });
+
+    // When the mouse leaves the blockgroups-layer layer, update the feature state of the
+    // previously hovered feature.
+    map.on('mouseleave', 'blockgroups-layer-fill', () => {
+        if (hoveredPolygonId) {
+            map.setFeatureState(
+                {source: 'mvt', sourceLayer: 'us_blockgroups', id: hoveredPolygonId},
+                {hover: false}
+            );
+        }
+        hoveredPolygonId = null;
+    });
+    
+    </script>
+</body>
+</html>
