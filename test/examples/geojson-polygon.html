@@ -57,16 +57,33 @@
                 }
             }
         });
+		
         map.addLayer({
             'id': 'maine',
             'type': 'fill',
             'source': 'maine',
             'layout': {},
+			'blendMode':'MULTIPLY',
             'paint': {
                 'fill-color': '#088',
-                'fill-opacity': 0.8
+                'fill-opacity': 1
+							
             }
         });
+		
+		 map.addLayer({
+            'id': 'maine-line',
+            'type': 'line',
+            'source': 'maine',
+            'layout': {},
+			'blendMode':'NORMAL',
+            'paint': {
+                'line-color': '#ff0000',
+				'line-width': 10
+				
+            }
+        });
+		
     });
 </script>
 </body>

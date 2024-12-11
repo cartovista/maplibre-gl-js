@@ -76,6 +76,27 @@ export function drawRaster(painter: Painter, sourceCache: SourceCache, layer: Ra
         const posMatrix = terrainCoord ? terrainCoord.posMatrix : painter.transform.calculatePosMatrix(coord.toUnwrapped(), align);
         const uniformValues = rasterUniformValues(posMatrix, parentTL || [0, 0], parentScaleBy || 1, fade, layer);
 
+        //CartoVista - Added Support for Blend Modes - Begin
+        if (layer.blendMode === 'MULTIPLY') {
+            gl.enable(gl.BLEND);
+
+            // Set the blend function to Multiply
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            gl.blendFunc(gl.DST_COLOR, gl.ONE_MINUS_SRC_ALPHA);
+        }  else if (layer.blendMode === 'SCREEN') {
+            gl.enable(gl.BLEND);
+
+            // Set the blend function to Screen
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_COLOR);
+        }  else if (layer.blendMode === 'LIGHTEN') {
+            gl.enable(gl.BLEND);
+
+            // Set the blend function to Lighten
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            gl.blendFunc(gl.ONE, gl.ONE);
+        }
+
         if (source instanceof ImageSource) {
             program.draw(context, gl.TRIANGLES, depthMode, StencilMode.disabled, colorMode, CullFaceMode.disabled,
                 uniformValues, terrainData, layer.id, source.boundsBuffer,
@@ -85,6 +106,12 @@ export function drawRaster(painter: Painter, sourceCache: SourceCache, layer: Ra
                 uniformValues, terrainData, layer.id, painter.rasterBoundsBuffer,
                 painter.quadTriangleIndexBuffer, painter.rasterBoundsSegments);
         }
+        //CartoVista - Added Support for Blend Modes - Begin
+        // Disable blending after drawing
+        if (layer.blendMode === 'MULTIPLY' || layer.blendMode === 'SCREEN' || layer.blendMode === 'LIGHTEN') {
+            gl.disable(gl.BLEND);
+        }
+        //CartoVista - Added Support for Blend Modes - End
     }
 }
 

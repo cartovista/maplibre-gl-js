@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGL Radial Gradient on Polygon</title>
+    <style>
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+<canvas id="glcanvas" width="800" height="800"></canvas>
+
+<script type="x-shader/x-vertex" id="vertex-shader">
+attribute vec2 a_position;
+uniform vec2 u_resolution;
+varying vec2 v_position;
+
+void main() {
+    // Convert from pixel space to normalized space (0 to 1)
+    vec2 zeroToOne = a_position / u_resolution;
+
+    // Convert from normalized space to clip space (-1 to +1)
+    vec2 clipSpace = zeroToOne * 2.0 - 1.0;
+
+    // Pass the position to the fragment shader
+    v_position = zeroToOne;
+
+    gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+}
+</script>
+
+<script type="x-shader/x-fragment" id="fragment-shader">
+precision mediump float;
+varying vec2 v_position;
+uniform vec2 u_center;
+uniform vec4 u_color1;
+uniform vec4 u_color2;
+uniform float u_radius;
+
+void main() {
+    // Calculate the distance from the center
+    float distance = length(v_position - u_center);
+
+    // Normalize the distance based on the radius
+    float t = distance / u_radius;
+
+    // Mix between two colors based on the distance
+    gl_FragColor = mix(u_color1, u_color2, t);
+}
+</script>
+
+<script type="text/javascript">
+function createShader(gl, type, source) {
+    var shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        console.error(gl.getShaderInfoLog(shader));
+        gl.deleteShader(shader);
+        return null;
+    }
+    return shader;
+}
+
+function createProgram(gl, vertexShader, fragmentShader) {
+    var program = gl.createProgram();
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        console.error(gl.getProgramInfoLog(program));
+        gl.deleteProgram(program);
+        return null;
+    }
+    return program;
+}
+
+function main() {
+    var canvas = document.getElementById("glcanvas");
+    var gl = canvas.getContext("webgl");
+    if (!gl) {
+        console.error("WebGL not supported.");
+        return;
+    }
+
+    var vertexShaderSource = document.getElementById("vertex-shader").text;
+    var fragmentShaderSource = document.getElementById("fragment-shader").text;
+
+    var vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+    var fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+    var program = createProgram(gl, vertexShader, fragmentShader);
+
+    var positionLocation = gl.getAttribLocation(program, "a_position");
+    var resolutionLocation = gl.getUniformLocation(program, "u_resolution");
+    var centerLocation = gl.getUniformLocation(program, "u_center");
+    var radiusLocation = gl.getUniformLocation(program, "u_radius");
+    var color1Location = gl.getUniformLocation(program, "u_color1");
+    var color2Location = gl.getUniformLocation(program, "u_color2");
+
+    var positions = [
+            50, 50,   // Point 1
+            150, 200, // Point 2
+            300, 150, // Point 3
+            250, 50,  // Point 4
+			120, 30,  // Point 5
+			50, 50 // Closing Point
+        ];
+
+    var positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+
+    // Calculate the center of the polygon
+    var sumX = 0, sumY = 0;
+    for (var i = 0; i < positions.length; i += 2) {
+        sumX += positions[i];
+        sumY += positions[i + 1];
+    }
+    var centerX = sumX / (positions.length / 2);
+    var centerY = sumY / (positions.length / 2);
+
+    // Calculate the maximum distance from the center to any vertex (used as the radius)
+    var maxDistance = 0;
+    for (var i = 0; i < positions.length; i += 2) {
+        var dx = positions[i] - centerX;
+        var dy = positions[i + 1] - centerY;
+        var distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance > maxDistance) {
+            maxDistance = distance;
+        }
+    }
+
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    gl.useProgram(program);
+
+    gl.enableVertexAttribArray(positionLocation);
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+    gl.uniform2f(resolutionLocation, gl.canvas.width, gl.canvas.height);
+    gl.uniform2f(centerLocation, centerX / gl.canvas.width, centerY / gl.canvas.height); // Center in normalized coordinates
+    gl.uniform1f(radiusLocation, maxDistance / Math.max(gl.canvas.width, gl.canvas.height)); // Radius in normalized coordinates
+
+    gl.uniform4f(color1Location, 0, 0, 1, 1); // Blue at the center
+    gl.uniform4f(color2Location, 1, 0, 0, 1); // Red at the edges
+
+    var primitiveType = gl.TRIANGLE_FAN;
+    var count = positions.length / 2;
+    gl.drawArrays(primitiveType, 0, count);
+}
+
+main();
+</script>
+</body>
+</html>

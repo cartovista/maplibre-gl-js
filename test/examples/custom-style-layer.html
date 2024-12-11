@@ -5,8 +5,8 @@
     <meta property="og:description" content="Use a custom style layer to render custom WebGL content." />
     <meta charset='utf-8'>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel='stylesheet' href='../../dist/maplibre-gl.css' />
-    <script src='../../dist/maplibre-gl-dev.js'></script>
+<script src='https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js'></script>
+<link href='https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css' rel='stylesheet' />
     <style>
         body { margin: 0; padding: 0; }
         html, body, #map { height: 100%; }
@@ -23,9 +23,11 @@
         antialias: true // create the gl context with MSAA antialiasing, so custom layers are antialiased
     });
 
+	const blendMode = 'MULTIPLY';
+
     // create a custom style layer to implement the WebGL content
-    const highlightLayer = {
-        id: 'highlight',
+    const cartovistaLayer = {
+        id: 'cartovista',
         type: 'custom',
 
         // method called when the layer is added to the map
@@ -45,7 +47,7 @@
 
             out highp vec4 fragColor;
             void main() {
-                fragColor = vec4(1.0, 0.0, 0.0, 0.5);
+                fragColor = vec4(0.75, 0.0, 0.0, 1);
             }`;
 
             // create a vertex shader
@@ -92,6 +94,7 @@
                     berlin.y,
                     kyiv.x,
                     kyiv.y
+					
                 ]),
                 gl.STATIC_DRAW
             );
@@ -108,15 +111,48 @@
             gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
             gl.enableVertexAttribArray(this.aPos);
             gl.vertexAttribPointer(this.aPos, 2, gl.FLOAT, false, 0, 0);
-            gl.enable(gl.BLEND);
-            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            
+			
+			// CartoVista Blend modes are: MULTIPLY,NORMAL,HARDLIGHT,LIGHTEN,OVERLAY,SCREEN
+			
+			
+			switch (blendMode) {
+				case 'MULTIPLY':
+					gl.enable(gl.BLEND);
+					gl.blendFuncSeparate(gl.DST_COLOR, gl.ZERO, gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+					break;
+				case 'SCREEN':
+					gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_COLOR);
+					break;
+				case 'LIGHTEN':
+					gl.blendFunc(gl.ONE, gl.ONE);
+					break;
+				case 'OVERLAY':
+					console.log('OVERLAY Blend Mode is not supported. Set to NORMAL.') // Requires fragment shader modification
+					break;
+				case 'HARDLIGHT':
+					console.log ('HARDLIGHT Blend Mode is not supported. Set to NORMAL.') // Requires fragment shader modification
+					break;
+				case 'NORMAL':
+				default:
+				break;
+			}
+			
+		
+			
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 3);
+			
+			// Disable blending after drawing
+			gl.disable(gl.BLEND);
+			
         }
     };
 
+
+
     // add the custom style layer to the map
     map.on('load', () => {
-        map.addLayer(highlightLayer, 'crimea-fill');
+        map.addLayer(cartovistaLayer, 'crimea-fill');
     });
 </script>
 </body>

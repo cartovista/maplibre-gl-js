@@ -35,6 +35,8 @@
             ctx.beginPath();
             ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
             ctx.strokeStyle = color;
+			ctx.fillStyle = color;
+			ctx.fill();
             ctx.stroke();
         };
 
@@ -102,7 +104,8 @@
         map.addLayer({
             id: 'canvas-layer',
             type: 'raster',
-            source: 'canvas-source'
+            source: 'canvas-source',
+			blendMode:'MULTIPLY'
         });
     });
 </script>

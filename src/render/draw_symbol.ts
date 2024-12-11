@@ -491,9 +491,39 @@ function drawSymbolElements(
     terrainData: TerrainData) {
     const context = painter.context;
     const gl = context.gl;
+
+    //CartoVista - Added Support for Blend Modes - Begin
+    if (layer.blendMode === 'MULTIPLY') {
+        gl.enable(gl.BLEND);
+
+        // Set the blend function to Multiply
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.blendFunc(gl.DST_COLOR, gl.ONE_MINUS_SRC_ALPHA);
+    }  else if (layer.blendMode === 'SCREEN') {
+        gl.enable(gl.BLEND);
+
+        // Set the blend function to Screen
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_COLOR);
+    }  else if (layer.blendMode === 'LIGHTEN') {
+        gl.enable(gl.BLEND);
+
+        // Set the blend function to Lighten
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.blendFunc(gl.ONE, gl.ONE);
+    }
+    //CartoVista - Added Support for Blend Modes - End
+
     program.draw(context, gl.TRIANGLES, depthMode, stencilMode, colorMode, CullFaceMode.disabled,
         uniformValues, terrainData, layer.id, buffers.layoutVertexBuffer,
         buffers.indexBuffer, segments, layer.paint,
         painter.transform.zoom, buffers.programConfigurations.get(layer.id),
         buffers.dynamicLayoutVertexBuffer, buffers.opacityVertexBuffer);
+
+    //CartoVista - Added Support for Blend Modes - Begin
+    // Disable blending after drawing
+    if (layer.blendMode === 'MULTIPLY' || layer.blendMode === 'SCREEN' || layer.blendMode === 'LIGHTEN') {
+        gl.disable(gl.BLEND);
+    }
+    //CartoVista - Added Support for Blend Modes - End
 }

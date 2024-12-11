@@ -39,6 +39,9 @@ export abstract class StyleLayer extends Evented {
     sourceLayer: string;
     minzoom: number;
     maxzoom: number;
+    //CartoVista - Added Support for Blend Modes - Begin
+    blendMode: string;
+    //CartoVista - Added Support for Blend Modes - End
     filter: FilterSpecification | void;
     visibility: 'visible' | 'none' | void;
     _crossfadeParameters: CrossfadeParameters;
@@ -75,6 +78,11 @@ export abstract class StyleLayer extends Evented {
 
         this.id = layer.id;
         this.type = layer.type;
+        //CartoVista - Added Support for Blend Modes - Begin
+        if ('blendMode' in layer) {
+            this.blendMode = layer.blendMode;
+        }
+        //CartoVista - Added Support for Blend Modes - End
         this._featureFilter = {filter: () => true, needGeometry: false};
 
         if (layer.type === 'custom') return;
@@ -214,7 +222,7 @@ export abstract class StyleLayer extends Evented {
     }
 
     serialize(): LayerSpecification {
-        const output: LayerSpecification = {
+        const output: LayerSpecification & { blendMode?: string } = {
             'id': this.id,
             'type': this.type as LayerSpecification['type'],
             'source': this.source,
@@ -222,6 +230,9 @@ export abstract class StyleLayer extends Evented {
             'metadata': this.metadata,
             'minzoom': this.minzoom,
             'maxzoom': this.maxzoom,
+            //CartoVista - Added Support for Blend Modes - Begin
+            'blendMode': this.blendMode,
+            //CartoVista - Added Support for Blend Modes - End
             'filter': this.filter as FilterSpecification,
             'layout': this._unevaluatedLayout && this._unevaluatedLayout.serialize(),
             'paint': this._transitionablePaint && this._transitionablePaint.serialize()

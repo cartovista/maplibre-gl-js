@@ -74,6 +74,7 @@
                     type: 'hillshade',
                     source: 'hillshadeSource',
                     layout: {visibility: 'visible'},
+					blendMode: 'MULTIPLY',
                     paint: {'hillshade-exaggeration': 0.25}
                 },
                 {
@@ -91,6 +92,7 @@
                     id: 'contour-text',
                     type: 'symbol',
                     source: 'contourSourceFeet',
+					blendMode: 'MULTIPLY',
                     'source-layer': 'contours',
                     filter: ['>', ['get', 'level'], 0],
                     paint: {

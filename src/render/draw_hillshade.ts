@@ -25,6 +25,29 @@ export function drawHillshade(painter: Painter, sourceCache: SourceCache, layer:
     const [stencilModes, coords] = painter.renderPass === 'translucent' ?
         painter.stencilConfigForOverlap(tileIDs) : [{}, tileIDs];
 
+    //CartoVista - Added Support for Blend Modes - Begin
+    const gl = painter.context.gl;
+    if (layer.blendMode === 'MULTIPLY') {
+        gl.enable(gl.BLEND);
+
+        // Set the blend function to Multiply
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.blendFunc(gl.DST_COLOR, gl.ONE_MINUS_SRC_ALPHA);
+    }  else if (layer.blendMode === 'SCREEN') {
+        gl.enable(gl.BLEND);
+
+        // Set the blend function to Screen
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_COLOR);
+    }  else if (layer.blendMode === 'LIGHTEN') {
+        gl.enable(gl.BLEND);
+
+        // Set the blend function to Lighten
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.blendFunc(gl.ONE, gl.ONE);
+    }
+    //CartoVista - Added Support for Blend Modes - End
+
     for (const coord of coords) {
         const tile = sourceCache.getTile(coord);
         if (typeof tile.needsHillshadePrepare !== 'undefined' && tile.needsHillshadePrepare && painter.renderPass === 'offscreen') {
@@ -33,6 +56,13 @@ export function drawHillshade(painter: Painter, sourceCache: SourceCache, layer:
             renderHillshade(painter, coord, tile, layer, depthMode, stencilModes[coord.overscaledZ], colorMode);
         }
     }
+
+    //CartoVista - Added Support for Blend Modes - Begin
+    // Disable blending after drawing
+    if (layer.blendMode === 'MULTIPLY' || layer.blendMode === 'SCREEN' || layer.blendMode === 'LIGHTEN') {
+        gl.disable(gl.BLEND);
+    }
+    //CartoVista - Added Support for Blend Modes - End
 
     context.viewport.set([0, 0, painter.width, painter.height]);
 }

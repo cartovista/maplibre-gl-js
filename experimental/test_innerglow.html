@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGL Inner Glow Effect</title>
+    <style>
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+<canvas id="glcanvas" width="800" height="800"></canvas>
+
+<!-- Vertex Shader -->
+<script type="x-shader/x-vertex" id="vertex-shader">
+attribute vec2 a_position;
+uniform vec2 u_resolution;
+varying vec2 v_texCoord;
+
+void main() {
+    // Convert from pixel space to normalized space (0 to 1)
+    vec2 zeroToOne = a_position / u_resolution;
+    v_texCoord = zeroToOne; // Pass the texture coordinates to the fragment shader
+
+    // Convert from normalized space to clip space (-1 to +1)
+    vec2 clipSpace = zeroToOne * 2.0 - 1.0;
+
+    // Flip the y-coordinate to match WebGL's clip space
+    gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+}
+</script>
+
+<!-- Inner Glow Fragment Shader -->
+<script type="x-shader/x-fragment" id="inner-glow-shader">
+precision mediump float;
+
+uniform vec4 u_glowColor;
+varying vec2 v_texCoord;
+
+void main() {
+    // Center of the shape in normalized texture coordinates
+    vec2 center = vec2(0.5, 0.5);
+
+    // Calculate the distance from the current pixel to the center
+    float dist = distance(v_texCoord, center);
+
+    // Inner glow effect: darken towards the center (adjust these parameters to change the effect)
+    float glowIntensity = smoothstep(0.4, 0.6, dist); // Adjust these parameters for the glow size
+    vec4 glowColor = u_glowColor * (1.0 - glowIntensity);
+
+    gl_FragColor = glowColor;
+}
+</script>
+
+<script type="text/javascript">
+function createShader(gl, type, source) {
+    var shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        console.error("Error compiling shader:", gl.getShaderInfoLog(shader));
+        gl.deleteShader(shader);
+        return null;
+    }
+    return shader;
+}
+
+function createProgram(gl, vertexShader, fragmentShader) {
+    var program = gl.createProgram();
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        console.error("Error linking program:", gl.getProgramInfoLog(program));
+        gl.deleteProgram(program);
+        return null;
+    }
+    return program;
+}
+
+function normalizeCoordinates(positions, canvasWidth, canvasHeight) {
+    var normalizedPositions = [];
+    for (var i = 0; i < positions.length; i += 2) {
+        // Normalize x coordinate from 0 to canvasWidth -> -1 to 1
+        var x = (positions[i] / canvasWidth) * 2 - 1;
+        // Normalize y coordinate from 0 to canvasHeight -> -1 to 1, and flip y
+        var y = ((positions[i + 1] / canvasHeight) * 2 - 1) * -1;
+        normalizedPositions.push(x, y);
+    }
+    return normalizedPositions;
+}
+
+function main() {
+    var canvas = document.getElementById("glcanvas");
+    var gl = canvas.getContext("webgl");
+
+    if (!gl) {
+        console.error("WebGL not supported.");
+        return;
+    }
+
+    // Compile shaders
+    var vertexShaderSource = document.getElementById("vertex-shader").text;
+    var innerGlowShaderSource = document.getElementById("inner-glow-shader").text;
+    var vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
+    var innerGlowShader = createShader(gl, gl.FRAGMENT_SHADER, innerGlowShaderSource);
+
+    // Create program
+    var innerGlowProgram = createProgram(gl, vertexShader, innerGlowShader);
+    if (!innerGlowProgram) {
+        console.error("Failed to create shader program");
+        return;
+    }
+
+    var innerGlowPositionLocation = gl.getAttribLocation(innerGlowProgram, "a_position");
+    var innerGlowResolutionLocation = gl.getUniformLocation(innerGlowProgram, "u_resolution");
+    var innerGlowColorLocation = gl.getUniformLocation(innerGlowProgram, "u_glowColor");
+
+    // Define the polygon shape
+    var positions = [
+        50, 50,   // Point 1
+        150, 200, // Point 2
+        300, 150, // Point 3
+        250, 50,  // Point 4
+        120, 30,  // Point 5
+        50, 50    // Closing point
+    ];
+
+    // Normalize coordinates
+    var normalizedPositions = normalizeCoordinates(positions, canvas.width, canvas.height);
+
+    // Set up the buffer
+    var positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normalizedPositions), gl.STATIC_DRAW);
+
+    // Clear the canvas
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    // Use the inner glow shader program
+    gl.useProgram(innerGlowProgram);
+    gl.enableVertexAttribArray(innerGlowPositionLocation);
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.vertexAttribPointer(innerGlowPositionLocation, 2, gl.FLOAT, false, 0, 0);
+
+    // Set uniforms
+    gl.uniform2f(innerGlowResolutionLocation, canvas.width, canvas.height);
+    gl.uniform4fv(innerGlowColorLocation, [1.0, 0.0, 0.0, 1.0]); // Red glow
+
+    // Draw the inner glow effect
+    gl.drawArrays(gl.TRIANGLE_FAN, 0, normalizedPositions.length / 2);
+}
+
+main();
+</script>
+</body>
+</html>

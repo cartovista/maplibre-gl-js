@@ -47,14 +47,17 @@
                 {
                     id: 'osm',
                     type: 'raster',
-                    source: 'osm'
+                    source: 'osm',
+					blendMode: 'NORMAL'
                 },
                 {
                     id: 'hills',
                     type: 'hillshade',
                     source: 'hillshadeSource',
                     layout: {visibility: 'visible'},
+					blendMode: 'NORMAL',
                     paint: {'hillshade-shadow-color': '#473B24'}
+					
                 }
             ],
             terrain: {

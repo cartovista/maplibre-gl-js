@@ -126,6 +126,11 @@ export interface CustomLayerInterface {
      * Either `"2d"` or `"3d"`. Defaults to `"2d"`.
      */
     renderingMode?: '2d' | '3d';
+
+    //CartoVista - Added Support for Blend Modes - Begin
+    blendMode?: string;
+    //CartoVista - Added Support for Blend Modes - End
+
     /**
      * Called during a render frame allowing the layer to draw into the GL context.
      *
