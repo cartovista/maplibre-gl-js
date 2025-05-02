@@ -72,35 +72,6 @@
             'glyphs': 'http://localhost/maplibre/fonts/{fontstack}/{range}.pbf',
             'layers': [
                 {
-                    'id': 'background',
-                    'type': 'background',
-                    'layout': {
-                        'visibility': 'visible'
-                    },
-                    'paint': {
-                        'background-color': {
-                            'stops': [
-                                [
-                                    6,
-                                    'rgba(252, 247, 229, 1)'
-                                ],
-                                [
-                                    10,
-                                    'rgba(252, 247, 229, 1)'
-                                ],
-                                [
-                                    14,
-                                    'rgba(246, 241, 229, 1)'
-                                ],
-                                [
-                                    15,
-                                    'rgba(246, 241, 229, 1)'
-                                ]
-                            ]
-                        }
-                    }
-                },
-                {
                     'id': 'here-basemap',
                     'type': 'raster',
                     'source': 'here',
@@ -110,114 +81,28 @@
                     }
                 },
                 {
-                    'id': 'landcover_grass',
-                    'type': 'fill',
-                    'source': 'openmaptiles',
-                    'source-layer': 'landcover',
-                    'layout': {
-                        'visibility': 'visible'
-                    },
-                    'paint': {
-                        'fill-color': 'rgba(294, 192, 201, 1)',
-                        'fill-opacity': 0.6,
-                        'fill-antialias': false
-                    },
-                    'metadata': {},
-                    'filter': [
-                        'all',
-                        [
-                            '==',
-                            'class',
-                            'grass'
-                        ]
-                    ]
-                },
-                {
                     'id': 'blockgroups-layer-fill',
                     'type': 'fill',
                     'source': 'mvt',
                     'blendMode': 'MULTIPLY',
                     'layout': {},
+                    //1171, 1283, 2495, 863, 1165
+                    'filter': ['in', ['get', 'value'], ['literal', [1283]]],
                     'source-layer': 'us_blockgroups', // Match the name defined in the MVT source
                     paint: {
-                        'fill-color': [
-                            'case',
-                            ['boolean', ['feature-state', 'hover'], false], // If hovered
-                            '#34a34f',                                       // Use hover color
-                            [
-                                'step',
-                                ['get', 'value'], // Ensure 'value' is numeric
-                                '#e0f7e0',        // Default color
-                                1000, '#c2e5c2',    // Color for 1000 <= value < 2000
-                                2000, '#81c781'    // Color for value >= 2000
-                            ]
-                        ],
-                        'fill-opacity': [
-                            'case',
-                            ['boolean', ['feature-state', 'hover'], false],
-                            1,
-                            0.9
-                        ]/* ,
-                        'fill-outline-color': [   //This can be used if we have a simple 1 px solid stroke on polygons....
-                            'case',
-                            ['boolean', ['feature-state', 'hover'], false],
-                            '#000000',
-                            '#ffffff'
-                        ] */
+                        'fill-gradient-type': 'linear',
+                        'fill-gradient-start-color': 'rgba(0,0,255,1)',
+                        'fill-gradient-end-color': 'rgba(0,255,255,1)',
+                        //'fill-color': 'rgba(0,0,255,1)',
+                        'fill-opacity': 0.99,
+                        'fill-outline-color': 'rgba(255,0,0,0)'
                     }
-                },
-    
-                {
-                    'id': 'blockgroups-layer-selection',
-                    'type': 'fill',
-                    'source': 'mvt',
-                    'blendMode': 'MULTIPLY',
-                    'source-layer': 'us_blockgroups', // Match the name defined in the MVT source
-                    paint: {
-                        'fill-color': '#ed6b21',
-                        'fill-opacity': 0.5
-                    },
-                    'filter': ['in', 'id', ''] // Initially no polygon are selected
-                },
-                {
-                    'id': 'blockgroups-layer-line',     //Used to draw the layer stroke....
-                    'type': 'line',
-                    'source': 'mvt',
-                    'layout': {},
-                    'blendMode': 'MULTIPLY',
-                    'source-layer': 'us_blockgroups', // Match the name defined in the MVT source
-                    paint: {
-                        'line-color': '#49BC99',
-                        'line-width': 1,
-                        'line-opacity': 0.5
-                    }
-                },
-                {
-                    'id': 'blockgroups-layer-labels',
-                    'type': 'symbol',
-                    'source': 'mvt',
-                    'source-layer': 'us_blockgroups',
-                    'blendMode': 'MULTIPLY',
-                    'layout': {
-                        'text-field': ['get', 'value'], // Directly render the 'value' field
-                        'text-font': ['Poppins Regular'],
-                        'text-size': 13,
-                        'text-letter-spacing': 0,
-                        'text-allow-overlap': false, // Prevents overlapping labels
-                        'symbol-placement': 'point'
-                    },
-                    'paint': {
-                        'text-color': 'black',
-                        'text-opacity': 1
-                        //'text-halo-color': '#00ffff',
-                        //'text-halo-blur': 1,
-                        //'text-halo-width': 2
-                    }
-                },
+                }
             ]
     },
-    center: [-118.33744656221326, 33.780291198388156], // Starting position [longitude, latitude]
-    zoom: 12, // Starting zoom level
+    
+    center: [-118.32177300322289, 33.81097804057865], // Starting position [longitude, latitude]
+    zoom: 13, // Starting zoom level
     interactive: true
 });
 

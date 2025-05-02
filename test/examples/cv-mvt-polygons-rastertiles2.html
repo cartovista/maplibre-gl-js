@@ -101,38 +101,6 @@
                     }
                 },
                 {
-                    'id': 'here-basemap',
-                    'type': 'raster',
-                    'source': 'here',
-                    paint: {
-                        'raster-opacity': 1,
-                        'raster-saturation': -0.5 // Grayscale effect
-                    }
-                },
-                {
-                    'id': 'landcover_grass',
-                    'type': 'fill',
-                    'source': 'openmaptiles',
-                    'source-layer': 'landcover',
-                    'layout': {
-                        'visibility': 'visible'
-                    },
-                    'paint': {
-                        'fill-color': 'rgba(294, 192, 201, 1)',
-                        'fill-opacity': 0.6,
-                        'fill-antialias': false
-                    },
-                    'metadata': {},
-                    'filter': [
-                        'all',
-                        [
-                            '==',
-                            'class',
-                            'grass'
-                        ]
-                    ]
-                },
-                {
                     'id': 'blockgroups-layer-fill',
                     'type': 'fill',
                     'source': 'mvt',
@@ -165,55 +133,7 @@
                             '#ffffff'
                         ] */
                     }
-                },
-    
-                {
-                    'id': 'blockgroups-layer-selection',
-                    'type': 'fill',
-                    'source': 'mvt',
-                    'blendMode': 'MULTIPLY',
-                    'source-layer': 'us_blockgroups', // Match the name defined in the MVT source
-                    paint: {
-                        'fill-color': '#ed6b21',
-                        'fill-opacity': 0.5
-                    },
-                    'filter': ['in', 'id', ''] // Initially no polygon are selected
-                },
-                {
-                    'id': 'blockgroups-layer-line',     //Used to draw the layer stroke....
-                    'type': 'line',
-                    'source': 'mvt',
-                    'layout': {},
-                    'blendMode': 'MULTIPLY',
-                    'source-layer': 'us_blockgroups', // Match the name defined in the MVT source
-                    paint: {
-                        'line-color': '#49BC99',
-                        'line-width': 1,
-                        'line-opacity': 0.5
-                    }
-                },
-                {
-                    'id': 'blockgroups-layer-labels',
-                    'type': 'symbol',
-                    'source': 'mvt',
-                    'source-layer': 'us_blockgroups',
-                    'blendMode': 'MULTIPLY',
-                    'layout': {
-                        'text-field': ['get', 'value'], // Directly render the 'value' field
-                        'text-font': ['Poppins Regular'],
-                        'text-size': 13,
-                        'text-letter-spacing': 0,
-                        'text-allow-overlap': false, // Prevents overlapping labels
-                        'symbol-placement': 'point'
-                    },
-                    'paint': {
-                        'text-color': 'black',
-                        'text-opacity': 1
-                        //'text-halo-color': '#00ffff',
-                        //'text-halo-blur': 1,
-                        //'text-halo-width': 2
-                    }
-                },
+                }
             ]
     },
     center: [-118.33744656221326, 33.780291198388156], // Starting position [longitude, latitude]

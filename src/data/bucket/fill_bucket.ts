@@ -30,12 +30,26 @@ import type {FeatureStates} from '../../source/source_state';
 import type {ImagePosition} from '../../render/image_atlas';
 import type {VectorTileLayer} from '@mapbox/vector-tile';
 
+type FeatureDrawInfo = {
+    vertexOffset: number;
+    indexOffset: number;
+    indexLength: number;
+    vertexLength: number;
+    boundsMin: [number, number];
+    boundsMax: [number, number];
+    featureId: number | string;
+};
+
 export class FillBucket implements Bucket {
     index: number;
     zoom: number;
     overscaling: number;
     layers: Array<FillStyleLayer>;
     layerIds: Array<string>;
+    maxLineLength: number;
+    //Added to support fill gradient and other CartoVista renderers....
+    featureDrawInfos: FeatureDrawInfo[] = [];
+
     stateDependentLayers: Array<FillStyleLayer>;
     stateDependentLayerIds: Array<string>;
     patternFeatures: Array<BucketFeature>;
@@ -55,6 +69,12 @@ export class FillBucket implements Bucket {
     segments2: SegmentVector;
     uploaded: boolean;
 
+    private _runningIndexOffset: number = 0;
+    private _runningVertexOffset: number = 0;
+    private _featureIndexCounter = 0;
+
+    featureIdToInternalIndex: { [key: string]: number } = {};
+
     constructor(options: BucketParameters<FillStyleLayer>) {
         this.zoom = options.zoom;
         this.overscaling = options.overscaling;
@@ -63,7 +83,6 @@ export class FillBucket implements Bucket {
         this.index = options.index;
         this.hasPattern = false;
         this.patternFeatures = [];
-
         this.layoutVertexArray = new FillLayoutArray();
         this.indexArray = new TriangleIndexArray();
         this.indexArray2 = new LineIndexArray();
@@ -71,6 +90,7 @@ export class FillBucket implements Bucket {
         this.segments = new SegmentVector();
         this.segments2 = new SegmentVector();
         this.stateDependentLayerIds = this.layers.filter((l) => l.isStateDependent()).map((l) => l.id);
+        this.maxLineLength = 0;
     }
 
     populate(features: Array<IndexedFeature>, options: PopulateParameters, canonical: CanonicalTileID) {
@@ -166,9 +186,34 @@ export class FillBucket implements Bucket {
         this.segments2.destroy();
     }
 
-    addFeature(feature: BucketFeature, geometry: Array<Array<Point>>, index: number, canonical: CanonicalTileID, imagePositions: {
-        [_: string]: ImagePosition;
-    }) {
+    addFeature(
+        feature: BucketFeature,
+        geometry: Array<Array<Point>>,
+        index: number,
+        canonical: CanonicalTileID,
+        imagePositions: { [_: string]: ImagePosition }
+    ) {
+        const vertexOffsetBefore = this.layoutVertexArray.length;
+        let indexOffsetBefore: number | null = null;
+
+        let indexLengthForFeature = 0;
+        let vertexLengthForFeature = 0;
+
+        let boundsMin: [number, number] | undefined;
+        let boundsMax: [number, number] | undefined;
+
+        const updateBounds = (x: number, y: number) => {
+            if (!boundsMin) {
+                boundsMin = [x, y];
+                boundsMax = [x, y];
+            } else {
+                boundsMin[0] = Math.min(boundsMin[0], x);
+                boundsMin[1] = Math.min(boundsMin[1], y);
+                boundsMax[0] = Math.max(boundsMax[0], x);
+                boundsMax[1] = Math.max(boundsMax[1], y);
+            }
+        };
+
         for (const polygon of classifyRings(geometry, EARCUT_MAX_RINGS)) {
             let numVertices = 0;
             for (const ring of polygon) {
@@ -178,13 +223,11 @@ export class FillBucket implements Bucket {
             const triangleSegment = this.segments.prepareSegment(numVertices, this.layoutVertexArray, this.indexArray);
             const triangleIndex = triangleSegment.vertexLength;
 
-            const flattened = [];
-            const holeIndices = [];
+            const flattened: number[] = [];
+            const holeIndices: number[] = [];
 
             for (const ring of polygon) {
-                if (ring.length === 0) {
-                    continue;
-                }
+                if (ring.length === 0) continue;
 
                 if (ring !== polygon[0]) {
                     holeIndices.push(flattened.length / 2);
@@ -195,14 +238,15 @@ export class FillBucket implements Bucket {
 
                 this.layoutVertexArray.emplaceBack(ring[0].x, ring[0].y);
                 this.indexArray2.emplaceBack(lineIndex + ring.length - 1, lineIndex);
-                flattened.push(ring[0].x);
-                flattened.push(ring[0].y);
+                flattened.push(ring[0].x, ring[0].y);
+                updateBounds(ring[0].x, ring[0].y);
 
                 for (let i = 1; i < ring.length; i++) {
-                    this.layoutVertexArray.emplaceBack(ring[i].x, ring[i].y);
+                    const pt = ring[i];
+                    this.layoutVertexArray.emplaceBack(pt.x, pt.y);
                     this.indexArray2.emplaceBack(lineIndex + i - 1, lineIndex + i);
-                    flattened.push(ring[i].x);
-                    flattened.push(ring[i].y);
+                    flattened.push(pt.x, pt.y);
+                    updateBounds(pt.x, pt.y);
                 }
 
                 lineSegment.vertexLength += ring.length;
@@ -211,18 +255,48 @@ export class FillBucket implements Bucket {
 
             const indices = earcut(flattened, holeIndices);
 
+            // Set indexOffset only once for the entire feature
+            if (indexOffsetBefore === null) {
+                indexOffsetBefore = this.indexArray.length;
+            }
+
             for (let i = 0; i < indices.length; i += 3) {
                 this.indexArray.emplaceBack(
                     triangleIndex + indices[i],
                     triangleIndex + indices[i + 1],
-                    triangleIndex + indices[i + 2]);
+                    triangleIndex + indices[i + 2]
+                );
             }
 
             triangleSegment.vertexLength += numVertices;
             triangleSegment.primitiveLength += indices.length / 3;
+
+            indexLengthForFeature += indices.length;
         }
-        this.programConfigurations.populatePaintArrays(this.layoutVertexArray.length, feature, index, imagePositions, canonical);
+
+        vertexLengthForFeature = this.layoutVertexArray.length - vertexOffsetBefore;
+
+        if (!this.featureDrawInfos) this.featureDrawInfos = [];
+
+        this.featureDrawInfos.push({
+            vertexOffset: vertexOffsetBefore,
+            indexOffset: indexOffsetBefore ?? 0, // fallback just in case
+            vertexLength: vertexLengthForFeature,
+            indexLength: indexLengthForFeature,
+            boundsMin: boundsMin!,
+            boundsMax: boundsMax!,
+            featureId: feature.id
+        });
+
+        this.programConfigurations.populatePaintArrays(
+            this.layoutVertexArray.length,
+            feature,
+            index,
+            imagePositions,
+            canonical
+        );
     }
+
 }
 
 register('FillBucket', FillBucket, {omit: ['layers', 'patternFeatures']});

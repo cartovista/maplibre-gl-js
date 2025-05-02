@@ -103,7 +103,10 @@ describe('vector tile worker source', () => {
                         }
                     }
                 } as any as vt.VectorTile,
-                rawData: rawTileData
+                rawData: rawTileData.buffer.slice(
+                    rawTileData.byteOffset,
+                    rawTileData.byteOffset + rawTileData.byteLength
+                ) as ArrayBuffer
             };
         };
 
@@ -161,7 +164,10 @@ describe('vector tile worker source', () => {
         const loadVectorData: LoadVectorData = async (_params, _abortController) => {
             return {
                 vectorTile: new vt.VectorTile(new Protobuf(rawTileData)),
-                rawData: rawTileData
+                rawData: rawTileData.buffer.slice(
+                    rawTileData.byteOffset,
+                    rawTileData.byteOffset + rawTileData.byteLength
+                ) as ArrayBuffer
             };
         };
 
@@ -291,7 +297,10 @@ describe('vector tile worker source', () => {
         const loadVectorData: LoadVectorData = async (_params, _abortController) => {
             return {
                 vectorTile: new vt.VectorTile(new Protobuf(rawTileData)),
-                rawData: rawTileData,
+                rawData: rawTileData.buffer.slice(
+                    rawTileData.byteOffset,
+                    rawTileData.byteOffset + rawTileData.byteLength
+                ) as ArrayBuffer,
                 cacheControl: null,
                 expires: null
             };
@@ -347,7 +356,10 @@ describe('vector tile worker source', () => {
         const loadVectorData: LoadVectorData = async (_params, _abortController) => {
             return {
                 vectorTile: new vt.VectorTile(new Protobuf(rawTileData)),
-                rawData: rawTileData,
+                rawData: rawTileData.buffer.slice(
+                    rawTileData.byteOffset,
+                    rawTileData.byteOffset + rawTileData.byteLength
+                ) as ArrayBuffer,
                 cacheControl: null,
                 expires: null
             };

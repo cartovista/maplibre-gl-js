@@ -1,5 +1,5 @@
 import {fillExtrusionUniforms, fillExtrusionPatternUniforms} from './fill_extrusion_program';
-import {fillUniforms, fillPatternUniforms, fillOutlineUniforms, fillOutlinePatternUniforms} from './fill_program';
+import {fillUniforms, fillBlendUniforms, fillPatternUniforms, fillOutlineUniforms, fillOutlinePatternUniforms, fillGradientUniforms} from './fill_program';
 import {circleUniforms} from './circle_program';
 import {collisionUniforms, collisionCircleUniforms} from './collision_program';
 import {debugUniforms} from './debug_program';
@@ -17,7 +17,9 @@ export const programUniforms = {
     fillExtrusion: fillExtrusionUniforms,
     fillExtrusionPattern: fillExtrusionPatternUniforms,
     fill: fillUniforms,
+    fillBlend: fillBlendUniforms,
     fillPattern: fillPatternUniforms,
+    fillGradient: fillGradientUniforms,
     fillOutline: fillOutlineUniforms,
     fillOutlinePattern: fillOutlinePatternUniforms,
     circle: circleUniforms,

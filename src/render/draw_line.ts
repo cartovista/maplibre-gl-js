@@ -119,19 +119,19 @@ export function drawLine(painter: Painter, sourceCache: SourceCache, layer: Line
             gl.enable(gl.BLEND);
 
             // Set the blend function to Multiply
-            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            //gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
             gl.blendFunc(gl.DST_COLOR, gl.ONE_MINUS_SRC_ALPHA);
         }  else if (layer.blendMode === 'SCREEN') {
             gl.enable(gl.BLEND);
 
             // Set the blend function to Screen
-            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            //gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
             gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_COLOR);
         }  else if (layer.blendMode === 'LIGHTEN') {
             gl.enable(gl.BLEND);
 
             // Set the blend function to Lighten
-            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            //gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
             gl.blendFunc(gl.ONE, gl.ONE);
         }
         //CartoVista - Added Support for Blend Modes - End
