@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>CV-EFFECTS — Circle Layer</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="CV-EFFECTS testbed for circle layers. Demonstrates drop shadow, outer glow, and inner glow on USGS earthquake data points.">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="../../dist/maplibre-gl.css">
+    <script src="../../dist/maplibre-gl-dev.js"></script>
+</head>
+<body>
+<!--
+  CV-EFFECTS: Circle Layer — supported paint properties
+  =====================================================
+  cv-blend-mode              enum   "normal" | "multiply" | "screen" | "add" | "lighten" | "overlay" | "hardlight"
+  cv-shadow-enabled          bool
+  cv-shadow-color            color
+  cv-shadow-opacity          0-1
+  cv-shadow-size             px     blur radius
+  cv-shadow-strength         0-10   alpha multiplier (1.0 = 100%)
+  cv-shadow-distance         px
+  cv-shadow-angle            deg
+  cv-outer-glow-enabled      bool
+  cv-outer-glow-color        color
+  cv-outer-glow-opacity      0-1
+  cv-outer-glow-size         px
+  cv-outer-glow-strength     0-10
+  cv-inner-glow-enabled      bool
+  cv-inner-glow-color        color
+  cv-inner-glow-opacity      0-1
+  cv-inner-glow-size         px
+  cv-inner-glow-strength     0-10
+  cv-hover-shadow-enabled    bool   (requires cv-pickable — future)
+  cv-hover-shadow-color      color
+  cv-hover-shadow-opacity    0-1
+  cv-hover-shadow-size       px
+  cv-hover-shadow-strength   0-10
+  cv-hover-highlight-color   color
+
+  Data: USGS earthquake dataset (maplibre.org hosted)
+  Basemap: HERE Maps Road Lite
+-->
+<script type="module">
+import { injectStyles, buildShell, initLayers, addFpsCounter, addBaselineToggle } from './cv-effects-controls.js';
+
+injectStyles();
+buildShell();
+
+const map = new maplibregl.Map({
+    container: 'cv-map',
+    style: {
+        version: 8,
+        sources: {
+            'here-basemap': {
+                type: 'raster',
+                tiles: ['https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=lite.day&lang=en&apiKey=8P_kbNDELB6ADBwC9oCoLd3Gd_C0gnan8TCvoNT1Wfg'],
+                tileSize: 256,
+            },
+        },
+        layers: [
+            { id: 'background', type: 'background', paint: { 'background-color': '#e8e4dc' } },
+            { id: 'here-basemap', type: 'raster', source: 'here-basemap', paint: { 'cv-blend-mode': 'normal' } },
+        ],
+    },
+    center: [-120, 38],
+    zoom: 3,
+});
+
+map.on('load', () => {
+    map.addSource('earthquakes', {
+        type: 'geojson',
+        data: 'https://maplibre.org/maplibre-gl-js/docs/assets/earthquakes.geojson',
+    });
+
+    map.addLayer({
+        id: 'quakes-circle',
+        type: 'circle',
+        source: 'earthquakes',
+        paint: {
+            'circle-radius': [
+                'interpolate', ['linear'], ['get', 'mag'],
+                1, 2, 4, 6, 7, 14,
+            ],
+            'circle-color': [
+                'interpolate', ['linear'], ['get', 'mag'],
+                1, '#3b82f6', 4, '#f59e0b', 7, '#ef4444',
+            ],
+            'circle-opacity': 0.85,
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 0.5,
+            'cv-blend-mode': 'normal',
+            'cv-shadow-enabled':  false,
+            'cv-shadow-color':    '#000000',
+            'cv-shadow-size':     6,
+            'cv-shadow-distance': 3,
+            'cv-shadow-angle':    45,
+            'cv-shadow-opacity':  0.5,
+            'cv-shadow-strength': 1.0,
+            'cv-outer-glow-enabled':  true,
+            'cv-outer-glow-color':    '#f59e0b',
+            'cv-outer-glow-size':     8,
+            'cv-outer-glow-opacity':  0.8,
+            'cv-outer-glow-strength': 1.0,
+            'cv-inner-glow-enabled':  false,
+            'cv-inner-glow-color':    '#ffffff',
+            'cv-inner-glow-size':     4,
+            'cv-inner-glow-opacity':  0.7,
+            'cv-inner-glow-strength': 1.0,
+        },
+    });
+
+    initLayers(map, [
+        {
+            id: 'quakes-circle',
+            label: 'Earthquakes',
+            type: 'circle',
+            effects: { blend: true, shadow: true, outerGlow: true, innerGlow: true },
+            defaults: {
+                'cv-blend-mode':          'normal',
+                'cv-shadow-enabled':       false,
+                'cv-shadow-color':         '#000000',
+                'cv-shadow-size':          6,
+                'cv-shadow-distance':      3,
+                'cv-shadow-angle':         45,
+                'cv-shadow-opacity':       0.5,
+                'cv-shadow-strength':      1.0,
+                'cv-outer-glow-enabled':   true,
+                'cv-outer-glow-color':     '#f59e0b',
+                'cv-outer-glow-size':      8,
+                'cv-outer-glow-opacity':   0.8,
+                'cv-outer-glow-strength':  1.0,
+                'cv-inner-glow-enabled':   false,
+                'cv-inner-glow-color':     '#ffffff',
+                'cv-inner-glow-size':      4,
+                'cv-inner-glow-opacity':   0.7,
+                'cv-inner-glow-strength':  1.0,
+            },
+        },
+        {
+            id: 'here-basemap',
+            label: 'HERE Road Lite (Basemap)',
+            type: 'raster',
+            effects: { blend: true, shadow: false, outerGlow: false, innerGlow: false },
+            defaults: { 'cv-blend-mode': 'normal' },
+        },
+    ]);
+
+    addFpsCounter(map);
+    addBaselineToggle(map, ['quakes-circle']);
+});
+</script>
+</body>
+</html>

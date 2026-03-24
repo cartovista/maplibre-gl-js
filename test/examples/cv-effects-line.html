@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>CV-EFFECTS — Line Layer</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="CV-EFFECTS testbed for line layers. Demonstrates drop shadow and outer glow on Natural Earth rivers GeoJSON. Line layers do NOT support inner glow.">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="../../dist/maplibre-gl.css">
+    <script src="../../dist/maplibre-gl-dev.js"></script>
+</head>
+<body>
+<!--
+  CV-EFFECTS: Line Layer — supported paint properties
+  ====================================================
+  cv-blend-mode              enum   "normal" | "multiply" | "screen" | "add" | "lighten" | "overlay" | "hardlight"
+  cv-shadow-enabled          bool
+  cv-shadow-color            color
+  cv-shadow-opacity          0-1
+  cv-shadow-size             px     blur radius
+  cv-shadow-strength         0-10   alpha multiplier (1.0 = 100%)
+  cv-shadow-distance         px
+  cv-shadow-angle            deg
+  cv-outer-glow-enabled      bool
+  cv-outer-glow-color        color
+  cv-outer-glow-opacity      0-1
+  cv-outer-glow-size         px
+  cv-outer-glow-strength     0-10
+  cv-hover-shadow-enabled    bool   (requires cv-pickable — future)
+  cv-hover-shadow-color      color
+  cv-hover-shadow-opacity    0-1
+  cv-hover-shadow-size       px
+  cv-hover-shadow-strength   0-10
+  cv-hover-highlight-color   color
+
+  NOTE: Line layers do NOT support inner glow (cv-inner-glow-*).
+  Data: Natural Earth 110m rivers (ne_rivers.geojson, tolerance=0 to prevent zoom-out simplification)
+  Basemap: HERE Maps Road Lite
+-->
+<script type="module">
+import { injectStyles, buildShell, initLayers, addFpsCounter, addBaselineToggle } from './cv-effects-controls.js';
+
+injectStyles();
+buildShell();
+
+const map = new maplibregl.Map({
+    container: 'cv-map',
+    style: {
+        version: 8,
+        sources: {
+            'here-basemap': {
+                type: 'raster',
+                tiles: ['https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=lite.day&lang=en&apiKey=8P_kbNDELB6ADBwC9oCoLd3Gd_C0gnan8TCvoNT1Wfg'],
+                tileSize: 256,
+            },
+        },
+        layers: [
+            { id: 'background', type: 'background', paint: { 'background-color': '#e8e4dc' } },
+            { id: 'here-basemap', type: 'raster', source: 'here-basemap', paint: { 'cv-blend-mode': 'normal' } },
+        ],
+    },
+    center: [0, 20],
+    zoom: 2,
+});
+
+map.on('load', () => {
+    map.addSource('rivers', {
+        type: 'geojson',
+        data: 'ne_rivers.geojson',
+        tolerance: 0,
+    });
+
+    map.addLayer({
+        id: 'rivers-line',
+        type: 'line',
+        source: 'rivers',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+            'line-color': '#4a90d9',
+            'line-width': ['interpolate', ['linear'], ['zoom'], 0, 2.5, 4, 2, 8, 1.5],
+            'cv-blend-mode': 'normal',
+            'cv-shadow-enabled':  true,
+            'cv-shadow-color':    '#000000',
+            'cv-shadow-size':     6,
+            'cv-shadow-distance': 4,
+            'cv-shadow-angle':    45,
+            'cv-shadow-opacity':  0.6,
+            'cv-shadow-strength': 1.0,
+            'cv-outer-glow-enabled':  false,
+            'cv-outer-glow-color':    '#4a90d9',
+            'cv-outer-glow-size':     8,
+            'cv-outer-glow-opacity':  0.8,
+            'cv-outer-glow-strength': 1.0,
+        },
+    });
+
+    initLayers(map, [
+        {
+            id: 'rivers-line',
+            label: 'Natural Earth Rivers',
+            type: 'line',
+            effects: { blend: true, shadow: true, outerGlow: true, innerGlow: false },
+            defaults: {
+                'cv-blend-mode':          'normal',
+                'cv-shadow-enabled':       true,
+                'cv-shadow-color':         '#000000',
+                'cv-shadow-size':          6,
+                'cv-shadow-distance':      4,
+                'cv-shadow-angle':         45,
+                'cv-shadow-opacity':       0.6,
+                'cv-shadow-strength':      1.0,
+                'cv-outer-glow-enabled':   false,
+                'cv-outer-glow-color':     '#4a90d9',
+                'cv-outer-glow-size':      8,
+                'cv-outer-glow-opacity':   0.8,
+                'cv-outer-glow-strength':  1.0,
+            },
+        },
+        {
+            id: 'here-basemap',
+            label: 'HERE Road Lite (Basemap)',
+            type: 'raster',
+            effects: { blend: true, shadow: false, outerGlow: false, innerGlow: false },
+            defaults: { 'cv-blend-mode': 'normal' },
+        },
+    ]);
+
+    addFpsCounter(map);
+    addBaselineToggle(map, ['rivers-line']);
+});
+</script>
+</body>
+</html>

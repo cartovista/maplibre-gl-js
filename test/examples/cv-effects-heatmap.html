@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>CV-EFFECTS — Heatmap Layer</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="CV-EFFECTS testbed for heatmap layers. Heatmap supports blend-mode compositing only. Drop shadow and glow are not applicable to kernel-density renders.">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="../../dist/maplibre-gl.css">
+    <script src="../../dist/maplibre-gl-dev.js"></script>
+</head>
+<body>
+<!--
+  CV-EFFECTS: Heatmap Layer — supported paint properties
+  ======================================================
+  cv-blend-mode   enum   "normal" | "multiply" | "screen" | "add" | "lighten" | "overlay" | "hardlight"
+
+  NOTE: Heatmap layers support ONLY blend-mode compositing.
+        Shadow and glow effects are not available for kernel-density renders.
+        The screen, add, and multiply modes are particularly useful for
+        overlaying heat maps on basemap imagery.
+  Data: USGS earthquake dataset (maplibre.org hosted)
+  Basemap: HERE Maps Road Lite
+-->
+<script type="module">
+import { injectStyles, buildShell, initLayers, addFpsCounter, addBaselineToggle } from './cv-effects-controls.js';
+
+injectStyles();
+buildShell();
+
+const map = new maplibregl.Map({
+    container: 'cv-map',
+    style: {
+        version: 8,
+        sources: {
+            'here-basemap': {
+                type: 'raster',
+                tiles: ['https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=lite.day&lang=en&apiKey=8P_kbNDELB6ADBwC9oCoLd3Gd_C0gnan8TCvoNT1Wfg'],
+                tileSize: 256,
+            },
+        },
+        layers: [
+            { id: 'background', type: 'background', paint: { 'background-color': '#e8e4dc' } },
+            { id: 'here-basemap', type: 'raster', source: 'here-basemap', paint: { 'cv-blend-mode': 'normal' } },
+        ],
+    },
+    center: [-120, 38],
+    zoom: 3,
+});
+
+map.on('load', () => {
+    map.addSource('earthquakes', {
+        type: 'geojson',
+        data: 'https://maplibre.org/maplibre-gl-js/docs/assets/earthquakes.geojson',
+    });
+
+    map.addLayer({
+        id: 'quakes-heatmap',
+        type: 'heatmap',
+        source: 'earthquakes',
+        paint: {
+            'heatmap-weight':    ['interpolate', ['linear'], ['get', 'mag'], 0, 0, 6, 1],
+            'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 1, 9, 3],
+            'heatmap-radius':    ['interpolate', ['linear'], ['zoom'], 0, 4, 9, 30],
+            'heatmap-opacity':   0.9,
+            'heatmap-color': [
+                'interpolate', ['linear'], ['heatmap-density'],
+                0,    'rgba(0,0,0,0)',
+                0.15, '#3b82f6',
+                0.35, '#8b5cf6',
+                0.55, '#f59e0b',
+                0.75, '#ef4444',
+                1,    '#7f1d1d',
+            ],
+            'cv-blend-mode': 'normal',
+        },
+    });
+
+    initLayers(map, [
+        {
+            id: 'quakes-heatmap',
+            label: 'Earthquakes Heatmap',
+            type: 'heatmap',
+            effects: { blend: true, shadow: false, outerGlow: false, innerGlow: false },
+            defaults: {
+                'cv-blend-mode': 'normal',
+            },
+        },
+        {
+            id: 'here-basemap',
+            label: 'HERE Road Lite (Basemap)',
+            type: 'raster',
+            effects: { blend: true, shadow: false, outerGlow: false, innerGlow: false },
+            defaults: { 'cv-blend-mode': 'normal' },
+        },
+    ]);
+
+    addFpsCounter(map);
+    addBaselineToggle(map, ['quakes-heatmap']);
+});
+</script>
+</body>
+</html>

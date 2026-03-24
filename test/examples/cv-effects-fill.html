@@ -1,382 +1,205 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>CV-EFFECTS — Fill Layer Smoke Test</title>
+    <title>CV-EFFECTS — Fill Layer</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="CV-EFFECTS testbed for fill and line layers. Demonstrates drop shadow, outer glow, inner glow, and blend-mode compositing on polygon fill layers backed by US county GeoJSON.">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="stylesheet" href="../../dist/maplibre-gl.css" />
     <script src="../../dist/maplibre-gl-dev.js"></script>
-    <style>
-        * { box-sizing: border-box; }
-        body { margin: 0; padding: 0; font-family: sans-serif; }
-        /* Use 100dvh (dynamic viewport height) so the map fills the window reliably */
-        #map { position: absolute; inset: 0; }
-
-        #controls {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            background: rgba(255,255,255,0.92);
-            border-radius: 6px;
-            padding: 12px 16px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-            min-width: 260px;
-            max-height: calc(100vh - 24px);
-            overflow-y: auto;
-            z-index: 10;
-        }
-        #controls h3 { margin: 0 0 10px; font-size: 14px; color: #333; }
-        #controls label { display: block; margin: 4px 0 2px; font-size: 12px; color: #555; }
-        #controls input[type=range] { width: 100%; }
-        #controls input[type=checkbox] { margin-right: 4px; }
-        .section { border-top: 1px solid #ddd; margin-top: 10px; padding-top: 8px; }
-        .section h4 { margin: 0 0 6px; font-size: 12px; color: #444; text-transform: uppercase; letter-spacing: 0.05em; }
-        .color-row { display: flex; justify-content: space-between; align-items: center; }
-        .color-row input[type=color] { width: 40px; height: 22px; padding: 0; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; }
-        #controls select { width: 100%; margin-top: 2px; font-size: 12px; padding: 2px 4px; border: 1px solid #ccc; border-radius: 3px; }
-    </style>
 </head>
 <body>
-<div id="map"></div>
+<!--
+  CV-EFFECTS: Fill Layer — supported paint properties
+  ====================================================
+  cv-blend-mode                  enum   "normal" | "multiply" | "screen" | "add" | "lighten" | "overlay" | "hardlight"
+  cv-shadow-enabled              bool   drop shadow on/off
+  cv-shadow-color                color
+  cv-shadow-opacity              0-1
+  cv-shadow-size                 px     blur radius
+  cv-shadow-strength             0-10   alpha multiplier (1.0 = 100%)
+  cv-shadow-distance             px     offset distance
+  cv-shadow-angle                deg    -180 to 180
+  cv-outer-glow-enabled          bool
+  cv-outer-glow-color            color
+  cv-outer-glow-opacity          0-1
+  cv-outer-glow-size             px
+  cv-outer-glow-strength         0-10
+  cv-inner-glow-enabled          bool
+  cv-inner-glow-color            color
+  cv-inner-glow-opacity          0-1
+  cv-inner-glow-size             px
+  cv-inner-glow-strength         0-10
+  cv-fill-gradient-type          enum   "none" | "linear" | "radial"
+  cv-fill-gradient-angle         deg
+  cv-fill-gradient-start-color   color
+  cv-fill-gradient-end-color     color
+  cv-hover-shadow-enabled        bool   (requires cv-pickable layout property — future)
+  cv-hover-shadow-color          color
+  cv-hover-shadow-opacity        0-1
+  cv-hover-shadow-size           px
+  cv-hover-shadow-strength       0-10
+  cv-hover-highlight-color       color  rgba tint over hovered feature
 
-<div id="controls">
-    <h3>CV-EFFECTS smoke test — fill layer</h3>
+  Data: US counties GeoJSON (counties-us.geojson)
+  Basemap: HERE Maps Road Lite (over solid background — blend mode is meaningful)
+-->
+<script type="module">
+import { injectStyles, buildShell, initLayers, addFpsCounter, addBaselineToggle } from './cv-effects-controls.js';
 
-    <div class="section">
-        <h4>Layer</h4>
-        <label>Blend mode</label>
-        <select id="blendMode">
-            <option value="normal"    selected>Normal</option>
-            <option value="multiply"  >Multiply</option>
-            <option value="screen"    >Screen</option>
-            <option value="add"       >Add</option>
-            <option value="lighten"   >Lighten</option>
-            <option value="overlay"   >Overlay</option>
-            <option value="hardlight" >Hard Light</option>
-        </select>
-    </div>
+injectStyles();
+buildShell();
 
-    <div class="section">
-        <h4>Drop Shadow</h4>
-        <label><input type="checkbox" id="shadowEnabled" checked> Enabled</label>
-        <label class="color-row">Color <input type="color" id="shadowColor" value="#000000"></label>
-        <label>Size: <span id="shadowSizeVal">9</span>px</label>
-        <input type="range" id="shadowSize" min="0" max="40" value="9">
-        <label>Distance: <span id="shadowDistVal">3</span>px</label>
-        <input type="range" id="shadowDist" min="0" max="40" value="3">
-        <label>Angle: <span id="shadowAngleVal">45</span>°</label>
-        <input type="range" id="shadowAngle" min="-180" max="180" value="45">
-        <label>Opacity: <span id="shadowOpacityVal">0.50</span></label>
-        <input type="range" id="shadowOpacity" min="0" max="1" step="0.01" value="0.5">
-        <label>Strength: <span id="shadowStrengthVal">100</span>%</label>
-        <input type="range" id="shadowStrength" min="0" max="1000" step="1" value="100">
-    </div>
-
-    <div class="section">
-        <h4>Outer Glow</h4>
-        <label><input type="checkbox" id="glowEnabled"> Enabled</label>
-        <label class="color-row">Color <input type="color" id="glowColor" value="#000000"></label>
-        <label>Size: <span id="glowSizeVal">7</span>px</label>
-        <input type="range" id="glowSize" min="0" max="40" value="7">
-        <label>Opacity: <span id="glowOpacityVal">1.00</span></label>
-        <input type="range" id="glowOpacity" min="0" max="1" step="0.01" value="1.0">
-        <label>Strength: <span id="glowStrengthVal">100</span>%</label>
-        <input type="range" id="glowStrength" min="0" max="1000" step="1" value="100">
-    </div>
-
-    <div class="section">
-        <h4>Inner Glow</h4>
-        <label><input type="checkbox" id="innerEnabled"> Enabled</label>
-        <label class="color-row">Color <input type="color" id="innerColor" value="#ffffff"></label>
-        <label>Size: <span id="innerSizeVal">5</span>px</label>
-        <input type="range" id="innerSize" min="0" max="40" value="5">
-        <label>Opacity: <span id="innerOpacityVal">1.00</span></label>
-        <input type="range" id="innerOpacity" min="0" max="1" step="0.01" value="1.0">
-        <label>Strength: <span id="innerStrengthVal">100</span>%</label>
-        <input type="range" id="innerStrength" min="0" max="1000" step="1" value="100">
-    </div>
-
-    <div class="section">
-        <h3 style="margin:0 0 8px;font-size:14px;color:#333;">Line Layer</h3>
-        <label><input type="checkbox" id="lineVisible" checked> Visible</label>
-        <label>Width: <span id="lineWidthVal">3</span>px</label>
-        <input type="range" id="lineWidth" min="1" max="20" step="1" value="3">
-        <label>Blend mode</label>
-        <select id="lineBlendMode">
-            <option value="normal"    selected>Normal</option>
-            <option value="multiply"  >Multiply</option>
-            <option value="screen"    >Screen</option>
-            <option value="add"       >Add</option>
-            <option value="lighten"   >Lighten</option>
-            <option value="overlay"   >Overlay</option>
-            <option value="hardlight" >Hard Light</option>
-        </select>
-    </div>
-
-    <div class="section">
-        <h4>Line Drop Shadow</h4>
-        <label><input type="checkbox" id="lineShadowEnabled"> Enabled</label>
-        <label class="color-row">Color <input type="color" id="lineShadowColor" value="#000000"></label>
-        <label>Size: <span id="lineShadowSizeVal">6</span>px</label>
-        <input type="range" id="lineShadowSize" min="0" max="40" value="6">
-        <label>Distance: <span id="lineShadowDistVal">4</span>px</label>
-        <input type="range" id="lineShadowDist" min="0" max="40" value="4">
-        <label>Angle: <span id="lineShadowAngleVal">45</span>°</label>
-        <input type="range" id="lineShadowAngle" min="-180" max="180" value="45">
-        <label>Opacity: <span id="lineShadowOpacityVal">0.60</span></label>
-        <input type="range" id="lineShadowOpacity" min="0" max="1" step="0.01" value="0.6">
-        <label>Strength: <span id="lineShadowStrengthVal">100</span>%</label>
-        <input type="range" id="lineShadowStrength" min="0" max="1000" step="1" value="100">
-    </div>
-
-    <div class="section">
-        <h4>Line Outer Glow</h4>
-        <label><input type="checkbox" id="lineGlowEnabled"> Enabled</label>
-        <label class="color-row">Color <input type="color" id="lineGlowColor" value="#ffcc00"></label>
-        <label>Size: <span id="lineGlowSizeVal">8</span>px</label>
-        <input type="range" id="lineGlowSize" min="0" max="40" value="8">
-        <label>Opacity: <span id="lineGlowOpacityVal">0.80</span></label>
-        <input type="range" id="lineGlowOpacity" min="0" max="1" step="0.01" value="0.8">
-        <label>Strength: <span id="lineGlowStrengthVal">100</span>%</label>
-        <input type="range" id="lineGlowStrength" min="0" max="1000" step="1" value="100">
-    </div>
-</div>
-
-<script>
-    // ── Diagnostic overlay ───────────────────────────────────────────────────
-    const status = document.createElement('div');
-    status.style.cssText = 'position:fixed;bottom:8px;right:8px;background:rgba(0,0,0,.65);color:#fff;font:12px monospace;padding:4px 8px;border-radius:4px;z-index:999;';
-    status.textContent = 'Initialising…';
-    document.body.appendChild(status);
-
-    // ── FPS counter ──────────────────────────────────────────────────────────
-    // MapLibre has no built-in showFPS flag; the `render` event fires once per
-    // drawn frame.  map.repaint = true forces continuous re-renders so the
-    // counter stays live and accurately reflects the cv-effects pipeline cost.
-    let _fpsFrames = 0;
-    let _fpsLast   = performance.now();
-
-    // ── Map ──────────────────────────────────────────────────────────────────
-    const map = new maplibregl.Map({
-        container: 'map',
-        style: {
-            version: 8,
-            glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
-            sources: {},
-            layers: [
-                {
-                    id: 'background',
-                    type: 'background',
-                    paint: { 'background-color': '#e8e4dc' }
-                }
-            ]
-        },
-        center: [-96, 38],
-        zoom: 4
-    });
-
-    map.on('error', e => {
-        status.style.background = 'rgba(200,0,0,.8)';
-        status.textContent = 'Map error: ' + (e.error?.message || JSON.stringify(e));
-        console.error('MapLibre error:', e);
-    });
-
-    map.on('load', () => {
-        status.textContent = 'Load fired — adding layers…';
-        map.addSource('counties', {
-            type: 'geojson',
-            data: 'counties-us.geojson'
-        });
-
-        map.addLayer({
-            id: 'states-fill',
-            type: 'fill',
-            source: 'counties',
-            paint: {
-                'fill-color': [
-                    'match',
-                    ['%', ['to-number', ['slice', ['get', 'fips'], 0, 2]], 8],
-                    0, '#e05c5c',
-                    1, '#5b9bd5',
-                    2, '#5cb85c',
-                    3, '#9b59b6',
-                    4, '#e8a838',
-                    5, '#1abc9c',
-                    6, '#e67e22',
-                    7, '#3498db',
-                    '#aaaaaa'
-                ],
-                'fill-opacity': 1.0,
-                'fill-outline-color': 'rgba(0,0,0,0.15)',
-                // ── CV-EFFECTS: layer ────────────────────────────────────────
-                'cv-blend-mode': 'normal',
-                // ── CV-EFFECTS: drop shadow ──────────────────────────────────
-                // ── CV-EFFECTS: drop shadow — defaults match cv-effects DEFAULT_SETTINGS
-                'cv-shadow-enabled':  true,
-                'cv-shadow-size':     9,
-                'cv-shadow-distance': 3,
-                'cv-shadow-angle':    45,
-                'cv-shadow-color':    '#000000',
-                'cv-shadow-opacity':  0.5,
-                'cv-shadow-strength': 1.0,
-                // ── CV-EFFECTS: outer glow ───────────────────────────────────
-                'cv-outer-glow-enabled':  false,
-                'cv-outer-glow-color':    '#000000',
-                'cv-outer-glow-size':     7,
-                'cv-outer-glow-opacity':  1.0,
-                'cv-outer-glow-strength': 1.0,
-                // ── CV-EFFECTS: inner glow ───────────────────────────────────
-                'cv-inner-glow-enabled':  false,
-                'cv-inner-glow-color':    '#ffffff',
-                'cv-inner-glow-size':     5,
-                'cv-inner-glow-opacity':  1.0,
-                'cv-inner-glow-strength': 1.0,
-            }
-        });
-        // ── Line layer — county borders with cv-* effects ─────────────────────
-        map.addLayer({
-            id: 'counties-line',
-            type: 'line',
-            source: 'counties',
-            layout: {
-                'visibility': 'none',
+const map = new maplibregl.Map({
+    container: 'cv-map',
+    style: {
+        version: 8,
+        sources: {
+            'here-basemap': {
+                type: 'raster',
+                tiles: ['https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=lite.day&lang=en&apiKey=8P_kbNDELB6ADBwC9oCoLd3Gd_C0gnan8TCvoNT1Wfg'],
+                tileSize: 256,
             },
-            paint: {
-                'line-color': '#1a1a2e',
-                'line-width': 3,
-                // ── CV-EFFECTS: layer ────────────────────────────────────────
-                'cv-blend-mode': 'normal',
-                // ── CV-EFFECTS: drop shadow ──────────────────────────────────
-                'cv-shadow-enabled':  false,
-                'cv-shadow-color':    '#000000',
-                'cv-shadow-size':     6,
-                'cv-shadow-distance': 4,
-                'cv-shadow-angle':    45,
-                'cv-shadow-opacity':  0.6,
-                'cv-shadow-strength': 1.0,
-                // ── CV-EFFECTS: outer glow ───────────────────────────────────
-                'cv-outer-glow-enabled':  false,
-                'cv-outer-glow-color':    '#ffcc00',
-                'cv-outer-glow-size':     8,
-                'cv-outer-glow-opacity':  0.8,
-                'cv-outer-glow-strength': 1.0,
-            }
-        });
+        },
+        layers: [
+            { id: 'background', type: 'background', paint: { 'background-color': '#e8e4dc' } },
+            { id: 'here-basemap', type: 'raster', source: 'here-basemap', paint: { 'cv-blend-mode': 'normal' } },
+        ],
+    },
+    center: [-96, 38],
+    zoom: 4,
+});
 
-        status.textContent = 'Ready ✓ — shadow on';
-
-        // Force continuous re-renders so the FPS counter is always live.
-        map.repaint = true;
+map.on('load', () => {
+    map.addSource('counties', {
+        type: 'geojson',
+        data: 'counties-us.geojson',
     });
 
-    // Add a baseline toggle: disable ALL cv-* effects to measure MapLibre-only cost.
-    const baselineBtn = document.createElement('button');
-    baselineBtn.textContent = 'Effects: ON';
-    baselineBtn.style.cssText = 'position:fixed;bottom:8px;left:8px;font:12px monospace;padding:3px 7px;cursor:pointer;z-index:999;';
-    let _effectsOn = true;
-    baselineBtn.addEventListener('click', () => {
-        _effectsOn = !_effectsOn;
-        baselineBtn.textContent = `Effects: ${_effectsOn ? 'ON' : 'OFF (baseline)'}`;
-        ['states-fill', 'counties-line'].forEach(id => {
-            try {
-                map.setPaintProperty(id, 'cv-shadow-enabled',    _effectsOn && id === 'states-fill');
-                map.setPaintProperty(id, 'cv-outer-glow-enabled', false);
-                map.setPaintProperty(id, 'cv-inner-glow-enabled', false);
-            } catch (_) {}
-        });
-    });
-    document.body.appendChild(baselineBtn);
-
-    map.on('render', () => {
-        _fpsFrames++;
-        const now = performance.now();
-        const elapsed = now - _fpsLast;
-        if (elapsed >= 500) {
-            const fps = (_fpsFrames * 1000 / elapsed).toFixed(1);
-            status.textContent = `${fps} fps`;
-            _fpsFrames = 0;
-            _fpsLast   = now;
-        }
-    });
-
-    // ── Live controls ────────────────────────────────────────────────────────
-
-    function bind(id, paintProp, displayId, transform) {
-        const el = document.getElementById(id);
-        const disp = document.getElementById(displayId);
-        const eventName = (el.tagName === 'SELECT') ? 'change' : 'input';
-        el.addEventListener(eventName, () => {
-            const raw = el.type === 'checkbox' ? el.checked
-                      : el.type === 'color'    ? el.value       // hex string — don't parseFloat
-                      : (el.tagName === 'SELECT') ? el.value    // enum string — don't parseFloat
-                      : parseFloat(el.value);
-            const val = transform ? transform(raw) : raw;
-            if (disp && el.type !== 'color') disp.textContent = el.type === 'checkbox' ? '' : raw.toFixed(el.step && el.step < 1 ? 2 : 0);
-            map.setPaintProperty('states-fill', paintProp, val);
-        });
-    }
-
-    bind('blendMode',      'cv-blend-mode',        null);
-
-    bind('shadowEnabled',  'cv-shadow-enabled',   null);
-    bind('shadowSize',     'cv-shadow-size',       'shadowSizeVal');
-    bind('shadowDist',     'cv-shadow-distance',   'shadowDistVal');
-    bind('shadowAngle',    'cv-shadow-angle',       'shadowAngleVal');
-    bind('shadowOpacity',  'cv-shadow-opacity',    'shadowOpacityVal');
-    bind('shadowStrength', 'cv-shadow-strength',   'shadowStrengthVal', v => v / 100);
-    bind('shadowColor',    'cv-shadow-color',       null);
-
-    bind('glowEnabled',   'cv-outer-glow-enabled',  null);
-    bind('glowSize',      'cv-outer-glow-size',      'glowSizeVal');
-    bind('glowOpacity',   'cv-outer-glow-opacity',   'glowOpacityVal');
-    bind('glowStrength',  'cv-outer-glow-strength',  'glowStrengthVal',  v => v / 100);
-    bind('glowColor',     'cv-outer-glow-color',     null);
-
-    bind('innerEnabled',   'cv-inner-glow-enabled',  null);
-    bind('innerSize',      'cv-inner-glow-size',      'innerSizeVal');
-    bind('innerOpacity',   'cv-inner-glow-opacity',   'innerOpacityVal');
-    bind('innerStrength',  'cv-inner-glow-strength',  'innerStrengthVal', v => v / 100);
-    bind('innerColor',     'cv-inner-glow-color',     null);
-
-    // ── Line layer controls ──────────────────────────────────────────────────
-
-    function bindLine(id, paintProp, displayId, transform) {
-        const el = document.getElementById(id);
-        const disp = document.getElementById(displayId);
-        const eventName = (el.tagName === 'SELECT') ? 'change' : 'input';
-        el.addEventListener(eventName, () => {
-            const raw = el.type === 'checkbox' ? el.checked
-                      : el.type === 'color'    ? el.value
-                      : (el.tagName === 'SELECT') ? el.value
-                      : parseFloat(el.value);
-            const val = transform ? transform(raw) : raw;
-            if (disp && el.type !== 'color') disp.textContent = el.type === 'checkbox' ? '' : raw.toFixed(el.step && el.step < 1 ? 2 : 0);
-            map.setPaintProperty('counties-line', paintProp, val);
-        });
-    }
-
-    document.getElementById('lineVisible').addEventListener('change', function() {
-        map.setLayoutProperty('counties-line', 'visibility', this.checked ? 'visible' : 'none');
-    });
-    document.getElementById('lineWidth').addEventListener('input', function() {
-        document.getElementById('lineWidthVal').textContent = this.value;
-        map.setPaintProperty('counties-line', 'line-width', parseFloat(this.value));
+    map.addLayer({
+        id: 'states-fill',
+        type: 'fill',
+        source: 'counties',
+        paint: {
+            'fill-color': [
+                'match',
+                ['%', ['to-number', ['slice', ['get', 'fips'], 0, 2]], 8],
+                0, '#e05c5c',
+                1, '#5b9bd5',
+                2, '#5cb85c',
+                3, '#9b59b6',
+                4, '#e8a838',
+                5, '#1abc9c',
+                6, '#e67e22',
+                7, '#3498db',
+                '#aaaaaa',
+            ],
+            'fill-opacity': 1.0,
+            'cv-blend-mode':          'normal',
+            'cv-shadow-enabled':       true,
+            'cv-shadow-color':         '#000000',
+            'cv-shadow-opacity':       0.5,
+            'cv-shadow-size':          9,
+            'cv-shadow-strength':      1.0,
+            'cv-shadow-distance':      3,
+            'cv-shadow-angle':         45,
+            'cv-outer-glow-enabled':   false,
+            'cv-outer-glow-color':     '#000000',
+            'cv-outer-glow-opacity':   1.0,
+            'cv-outer-glow-size':      7,
+            'cv-outer-glow-strength':  1.0,
+            'cv-inner-glow-enabled':   false,
+            'cv-inner-glow-color':     '#ffffff',
+            'cv-inner-glow-opacity':   1.0,
+            'cv-inner-glow-size':      5,
+            'cv-inner-glow-strength':  1.0,
+        },
     });
 
-    bindLine('lineBlendMode',      'cv-blend-mode',        null);
-    bindLine('lineShadowEnabled',  'cv-shadow-enabled',    null);
-    bindLine('lineShadowSize',     'cv-shadow-size',        'lineShadowSizeVal');
-    bindLine('lineShadowDist',     'cv-shadow-distance',   'lineShadowDistVal');
-    bindLine('lineShadowAngle',    'cv-shadow-angle',       'lineShadowAngleVal');
-    bindLine('lineShadowOpacity',  'cv-shadow-opacity',    'lineShadowOpacityVal');
-    bindLine('lineShadowStrength', 'cv-shadow-strength',   'lineShadowStrengthVal', v => v / 100);
-    bindLine('lineShadowColor',    'cv-shadow-color',       null);
-    bindLine('lineGlowEnabled',    'cv-outer-glow-enabled', null);
-    bindLine('lineGlowSize',       'cv-outer-glow-size',    'lineGlowSizeVal');
-    bindLine('lineGlowOpacity',    'cv-outer-glow-opacity', 'lineGlowOpacityVal');
-    bindLine('lineGlowStrength',   'cv-outer-glow-strength','lineGlowStrengthVal', v => v / 100);
-    bindLine('lineGlowColor',      'cv-outer-glow-color',   null);
+    map.addLayer({
+        id: 'counties-line',
+        type: 'line',
+        source: 'counties',
+        paint: {
+            'line-color': '#808080',
+            'line-width': 1,
+            'cv-blend-mode':          'normal',
+            'cv-shadow-enabled':       false,
+            'cv-shadow-color':         '#000000',
+            'cv-shadow-opacity':       0.6,
+            'cv-shadow-size':          6,
+            'cv-shadow-strength':      1.0,
+            'cv-shadow-distance':      4,
+            'cv-shadow-angle':         45,
+            'cv-outer-glow-enabled':   false,
+            'cv-outer-glow-color':     '#ffcc00',
+            'cv-outer-glow-opacity':   0.8,
+            'cv-outer-glow-size':      8,
+            'cv-outer-glow-strength':  1.0,
+        },
+    });
+
+    initLayers(map, [
+        {
+            id: 'states-fill',
+            label: 'US Counties (Fill)',
+            type: 'fill',
+            effects: { blend: true, shadow: true, outerGlow: true, innerGlow: true },
+            defaults: {
+                'cv-blend-mode':          'normal',
+                'cv-shadow-enabled':       true,
+                'cv-shadow-color':         '#000000',
+                'cv-shadow-opacity':       0.5,
+                'cv-shadow-size':          9,
+                'cv-shadow-strength':      1.0,
+                'cv-shadow-distance':      3,
+                'cv-shadow-angle':         45,
+                'cv-outer-glow-enabled':   false,
+                'cv-outer-glow-color':     '#000000',
+                'cv-outer-glow-opacity':   1.0,
+                'cv-outer-glow-size':      7,
+                'cv-outer-glow-strength':  1.0,
+                'cv-inner-glow-enabled':   false,
+                'cv-inner-glow-color':     '#ffffff',
+                'cv-inner-glow-opacity':   1.0,
+                'cv-inner-glow-size':      5,
+                'cv-inner-glow-strength':  1.0,
+            },
+        },
+        {
+            id: 'counties-line',
+            label: 'County Borders (Line)',
+            type: 'line',
+            effects: { blend: true, shadow: true, outerGlow: true, innerGlow: false },
+            defaults: {
+                'cv-blend-mode':          'normal',
+                'cv-shadow-enabled':       false,
+                'cv-shadow-color':         '#000000',
+                'cv-shadow-opacity':       0.6,
+                'cv-shadow-size':          6,
+                'cv-shadow-strength':      1.0,
+                'cv-shadow-distance':      4,
+                'cv-shadow-angle':         45,
+                'cv-outer-glow-enabled':   false,
+                'cv-outer-glow-color':     '#ffcc00',
+                'cv-outer-glow-opacity':   0.8,
+                'cv-outer-glow-size':      8,
+                'cv-outer-glow-strength':  1.0,
+            },
+        },
+        {
+            id: 'here-basemap',
+            label: 'HERE Road Lite (Basemap)',
+            type: 'raster',
+            effects: { blend: true, shadow: false, outerGlow: false, innerGlow: false },
+            defaults: { 'cv-blend-mode': 'normal' },
+        },
+    ]);
+
+    addFpsCounter(map);
+    addBaselineToggle(map, ['states-fill', 'counties-line']);
+});
 </script>
 </body>
 </html>
