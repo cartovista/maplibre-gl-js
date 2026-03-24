@@ -61,6 +61,8 @@ import {isColorReliefStyleLayer} from '../style/style_layer/color_relief_style_l
 import {isRasterStyleLayer} from '../style/style_layer/raster_style_layer';
 import {isBackgroundStyleLayer} from '../style/style_layer/background_style_layer';
 import {isCustomStyleLayer} from '../style/style_layer/custom_style_layer';
+// CV-EFFECTS:
+import {EffectsRenderer} from './effects_renderer';
 
 export type RenderPass = 'offscreen' | 'opaque' | 'translucent';
 
@@ -135,6 +137,8 @@ export class Painter {
     // of the terrain-facilitators. e.g. depth & coords framebuffers
     // every time the camera-matrix changes the terrain-facilitators will be redrawn.
     terrainFacilitator: {dirty: boolean; matrix: mat4; renderTime: number};
+    // CV-EFFECTS: post-processing effects pipeline for fill/line/circle/symbol layers
+    effectsRenderer: EffectsRenderer;
 
     constructor(gl: WebGLRenderingContext | WebGL2RenderingContext, transform: IReadonlyTransform) {
         this.context = new Context(gl);
@@ -143,6 +147,8 @@ export class Painter {
         this.terrainFacilitator = {dirty: true, matrix: mat4.identity(new Float64Array(16) as any), renderTime: 0};
 
         this.setup();
+        // CV-EFFECTS:
+        this.effectsRenderer = new EffectsRenderer(this.context);
 
         // Within each layer there are multiple distinct z-planes that can be drawn to.
         // This is implemented using the WebGL depth buffer.
@@ -157,6 +163,8 @@ export class Painter {
      * for a new width and height value.
      */
     resize(width: number, height: number, pixelRatio: number) {
+        // CV-EFFECTS: free FBOs so they are re-created at the new canvas size
+        this.effectsRenderer?.destroyFBOs();
         this.width = Math.floor(width * pixelRatio);
         this.height = Math.floor(height * pixelRatio);
         this.pixelRatio = pixelRatio;
@@ -667,9 +675,35 @@ export class Painter {
         } else if (isHeatmapStyleLayer(layer)) {
             drawHeatmap(painter, tileManager, layer, coords, renderOptions);
         } else if (isLineStyleLayer(layer)) {
-            drawLine(painter, tileManager, layer, coords, renderOptions);
+            // CV-EFFECTS: wrap with FBO capture when cv-* effects are active
+            if (this.effectsRenderer.hasEffects(layer)) {
+                const savedStencilSource = this.currentStencilSource;
+                this.effectsRenderer.beginCapture(this);
+                this.currentStencilSource = null;
+                this._renderTileClippingMasks(layer, coords, !!this.renderToTexture);
+                drawLine(painter, tileManager, layer, coords, renderOptions);
+                this.effectsRenderer.composite(this, layer);
+                this.currentStencilSource = savedStencilSource;
+            } else {
+                drawLine(painter, tileManager, layer, coords, renderOptions);
+            }
         } else if (isFillStyleLayer(layer)) {
-            drawFill(painter, tileManager, layer, coords, renderOptions);
+            // CV-EFFECTS: wrap with FBO capture when effects are active
+            if (this.effectsRenderer.hasEffects(layer)) {
+                const savedStencilSource = this.currentStencilSource;
+                this.effectsRenderer.beginCapture(this);
+                // Reset currentStencilSource to force re-render of tile clipping
+                // masks into the capture FBO (bypasses the "same source = skip" guard).
+                this.currentStencilSource = null;
+                this._renderTileClippingMasks(layer, coords, !!this.renderToTexture);
+                drawFill(painter, tileManager, layer, coords, renderOptions);
+                this.effectsRenderer.composite(this, layer);
+                // Restore so subsequent same-source layers re-render their masks
+                // on the default framebuffer as normal.
+                this.currentStencilSource = savedStencilSource;
+            } else {
+                drawFill(painter, tileManager, layer, coords, renderOptions);
+            }
         } else if (isFillExtrusionStyleLayer(layer)) {
             drawFillExtrusion(painter, tileManager, layer, coords, renderOptions);
         } else if (isHillshadeStyleLayer(layer)) {

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Plain fill — baseline test</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="../../dist/maplibre-gl.css" />
+    <script src="../../dist/maplibre-gl-dev.js"></script>
+    <style>
+        body { margin: 0; }
+        #map { position: absolute; inset: 0; }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: {
+            version: 8,
+            sources: {},
+            layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#c8d4c0' } }]
+        },
+        center: [-96, 38],
+        zoom: 4
+    });
+
+    map.on('load', () => {
+        map.addSource('states', {
+            type: 'geojson',
+            data: {
+                type: 'FeatureCollection',
+                features: [
+                    { type: 'Feature', properties: {},
+                      geometry: { type: 'Polygon', coordinates: [[
+                        [-109, 41], [-102, 41], [-102, 37], [-109, 37], [-109, 41]
+                      ]] }
+                    },
+                    { type: 'Feature', properties: {},
+                      geometry: { type: 'Polygon', coordinates: [[
+                        [-102, 41], [-94, 41], [-94, 37], [-102, 37], [-102, 41]
+                      ]] }
+                    },
+                    { type: 'Feature', properties: {},
+                      geometry: { type: 'Polygon', coordinates: [[
+                        [-103, 37], [-94, 37], [-94, 33], [-103, 33], [-103, 37]
+                      ]] }
+                    }
+                ]
+            }
+        });
+
+        map.addLayer({
+            id: 'fill',
+            type: 'fill',
+            source: 'states',
+            paint: {
+                'fill-color': '#4488cc',
+                'fill-opacity': 0.7,
+                'fill-outline-color': '#ffffff'
+            }
+        });
+    });
+</script>
+</body>
+</html>
