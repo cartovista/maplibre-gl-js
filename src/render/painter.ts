@@ -669,11 +669,44 @@ export class Painter {
         this.id = layer.id;
 
         if (isSymbolStyleLayer(layer)) {
-            drawSymbols(painter, tileManager, layer, coords, this.style.placement.variableOffsets, renderOptions);
+            // CV-EFFECTS: wrap with FBO capture when cv-* effects are active
+            if (this.effectsRenderer.hasEffects(layer)) {
+                const savedStencilSource = this.currentStencilSource;
+                this.effectsRenderer.beginCapture(this);
+                this.currentStencilSource = null;
+                this._renderTileClippingMasks(layer, coords, !!this.renderToTexture);
+                drawSymbols(painter, tileManager, layer, coords, this.style.placement.variableOffsets, renderOptions);
+                this.effectsRenderer.composite(this, layer);
+                this.currentStencilSource = savedStencilSource;
+            } else {
+                drawSymbols(painter, tileManager, layer, coords, this.style.placement.variableOffsets, renderOptions);
+            }
         } else if (isCircleStyleLayer(layer)) {
-            drawCircles(painter, tileManager, layer, coords, renderOptions);
+            // CV-EFFECTS: wrap with FBO capture when cv-* effects are active
+            if (this.effectsRenderer.hasEffects(layer)) {
+                const savedStencilSource = this.currentStencilSource;
+                this.effectsRenderer.beginCapture(this);
+                this.currentStencilSource = null;
+                this._renderTileClippingMasks(layer, coords, !!this.renderToTexture);
+                drawCircles(painter, tileManager, layer, coords, renderOptions);
+                this.effectsRenderer.composite(this, layer);
+                this.currentStencilSource = savedStencilSource;
+            } else {
+                drawCircles(painter, tileManager, layer, coords, renderOptions);
+            }
         } else if (isHeatmapStyleLayer(layer)) {
-            drawHeatmap(painter, tileManager, layer, coords, renderOptions);
+            // CV-EFFECTS: wrap with FBO capture when cv-* effects are active
+            if (this.effectsRenderer.hasEffects(layer)) {
+                const savedStencilSource = this.currentStencilSource;
+                this.effectsRenderer.beginCapture(this);
+                this.currentStencilSource = null;
+                this._renderTileClippingMasks(layer, coords, !!this.renderToTexture);
+                drawHeatmap(painter, tileManager, layer, coords, renderOptions);
+                this.effectsRenderer.composite(this, layer);
+                this.currentStencilSource = savedStencilSource;
+            } else {
+                drawHeatmap(painter, tileManager, layer, coords, renderOptions);
+            }
         } else if (isLineStyleLayer(layer)) {
             // CV-EFFECTS: wrap with FBO capture when cv-* effects are active
             if (this.effectsRenderer.hasEffects(layer)) {
@@ -705,13 +738,35 @@ export class Painter {
                 drawFill(painter, tileManager, layer, coords, renderOptions);
             }
         } else if (isFillExtrusionStyleLayer(layer)) {
-            drawFillExtrusion(painter, tileManager, layer, coords, renderOptions);
+            // CV-EFFECTS: wrap with FBO capture when cv-* effects are active
+            if (this.effectsRenderer.hasEffects(layer)) {
+                const savedStencilSource = this.currentStencilSource;
+                this.effectsRenderer.beginCapture(this);
+                this.currentStencilSource = null;
+                this._renderTileClippingMasks(layer, coords, !!this.renderToTexture);
+                drawFillExtrusion(painter, tileManager, layer, coords, renderOptions);
+                this.effectsRenderer.composite(this, layer);
+                this.currentStencilSource = savedStencilSource;
+            } else {
+                drawFillExtrusion(painter, tileManager, layer, coords, renderOptions);
+            }
         } else if (isHillshadeStyleLayer(layer)) {
             drawHillshade(painter, tileManager, layer, coords, renderOptions);
         } else if (isColorReliefStyleLayer(layer)) {
             drawColorRelief(painter, tileManager, layer, coords, renderOptions);
         } else if (isRasterStyleLayer(layer)) {
-            drawRaster(painter, tileManager, layer, coords, renderOptions);
+            // CV-EFFECTS: wrap with FBO capture when cv-* effects are active
+            if (this.effectsRenderer.hasEffects(layer)) {
+                const savedStencilSource = this.currentStencilSource;
+                this.effectsRenderer.beginCapture(this);
+                this.currentStencilSource = null;
+                this._renderTileClippingMasks(layer, coords, !!this.renderToTexture);
+                drawRaster(painter, tileManager, layer, coords, renderOptions);
+                this.effectsRenderer.composite(this, layer);
+                this.currentStencilSource = savedStencilSource;
+            } else {
+                drawRaster(painter, tileManager, layer, coords, renderOptions);
+            }
         } else if (isBackgroundStyleLayer(layer)) {
             drawBackground(painter, tileManager, layer, coords, renderOptions);
         } else if (isCustomStyleLayer(layer)) {

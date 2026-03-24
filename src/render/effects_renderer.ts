@@ -25,9 +25,23 @@ import {
 
 import type {Context} from '../gl/context';
 import type {Painter} from './painter';
-import {isFillStyleLayer} from '../style/style_layer/fill_style_layer';
 import type {FillStyleLayer} from '../style/style_layer/fill_style_layer';
 import type {LineStyleLayer} from '../style/style_layer/line_style_layer';
+import type {CircleStyleLayer} from '../style/style_layer/circle_style_layer';
+import type {SymbolStyleLayer} from '../style/style_layer/symbol_style_layer';
+import type {FillExtrusionStyleLayer} from '../style/style_layer/fill_extrusion_style_layer';
+import type {HeatmapStyleLayer} from '../style/style_layer/heatmap_style_layer';
+import type {RasterStyleLayer} from '../style/style_layer/raster_style_layer';
+
+/** Union of all layer types that support at least cv-blend-mode. */
+export type CvEffectsLayer =
+    | FillStyleLayer
+    | LineStyleLayer
+    | CircleStyleLayer
+    | SymbolStyleLayer
+    | FillExtrusionStyleLayer
+    | HeatmapStyleLayer
+    | RasterStyleLayer;
 
 // ─── Shared cv-* paint values extracted from any supported layer type ─────────
 // TypeScript cannot call .get() on the union FillPaintProps | LinePaintProps
@@ -55,9 +69,34 @@ type CvEffectValues = {
     innerGlowStrength: number;
 };
 
-function extractCvEffectValues(layer: FillStyleLayer | LineStyleLayer): CvEffectValues {
-    if (isFillStyleLayer(layer)) {
-        const p = layer.paint;
+/** Returns zeroed CvEffectValues with only blendMode set (for blend-only layers). */
+function blendOnlyValues(blendMode: string): CvEffectValues {
+    return {
+        blendMode,
+        shadowEnabled:     false,
+        shadowSize:        0,
+        shadowDist:        0,
+        shadowAngle:       0,
+        shadowColor:       Color.transparent,
+        shadowOpacity:     0,
+        shadowStrength:    0,
+        outerGlowEnabled:  false,
+        outerGlowSize:     0,
+        outerGlowColor:    Color.transparent,
+        outerGlowOpacity:  0,
+        outerGlowStrength: 0,
+        innerGlowEnabled:  false,
+        innerGlowSize:     0,
+        innerGlowColor:    Color.transparent,
+        innerGlowOpacity:  0,
+        innerGlowStrength: 0,
+    };
+}
+
+function extractCvEffectValues(layer: CvEffectsLayer): CvEffectValues {
+    // ── Full set: fill, circle, fill-extrusion, symbol ────────────────────────
+    if (layer.type === 'fill') {
+        const p = (layer as FillStyleLayer).paint;
         return {
             blendMode:         (p.get('cv-blend-mode') as string) || 'normal',
             shadowEnabled:     p.get('cv-shadow-enabled') as boolean,
@@ -79,28 +118,107 @@ function extractCvEffectValues(layer: FillStyleLayer | LineStyleLayer): CvEffect
             innerGlowStrength: p.get('cv-inner-glow-strength') as number,
         };
     }
-    // LineStyleLayer — no inner glow properties
-    const p = layer.paint;
-    return {
-        blendMode:         (p.get('cv-blend-mode') as string) || 'normal',
-        shadowEnabled:     p.get('cv-shadow-enabled') as boolean,
-        shadowSize:        p.get('cv-shadow-size') as number,
-        shadowDist:        p.get('cv-shadow-distance') as number,
-        shadowAngle:       p.get('cv-shadow-angle') as number,
-        shadowColor:       p.get('cv-shadow-color') as Color,
-        shadowOpacity:     p.get('cv-shadow-opacity') as number,
-        shadowStrength:    p.get('cv-shadow-strength') as number,
-        outerGlowEnabled:  p.get('cv-outer-glow-enabled') as boolean,
-        outerGlowSize:     p.get('cv-outer-glow-size') as number,
-        outerGlowColor:    p.get('cv-outer-glow-color') as Color,
-        outerGlowOpacity:  p.get('cv-outer-glow-opacity') as number,
-        outerGlowStrength: p.get('cv-outer-glow-strength') as number,
-        innerGlowEnabled:  false,
-        innerGlowSize:     0,
-        innerGlowColor:    Color.transparent,
-        innerGlowOpacity:  0,
-        innerGlowStrength: 0,
-    };
+    if (layer.type === 'circle') {
+        const p = (layer as CircleStyleLayer).paint;
+        return {
+            blendMode:         (p.get('cv-blend-mode') as string) || 'normal',
+            shadowEnabled:     p.get('cv-shadow-enabled') as boolean,
+            shadowSize:        p.get('cv-shadow-size') as number,
+            shadowDist:        p.get('cv-shadow-distance') as number,
+            shadowAngle:       p.get('cv-shadow-angle') as number,
+            shadowColor:       p.get('cv-shadow-color') as Color,
+            shadowOpacity:     p.get('cv-shadow-opacity') as number,
+            shadowStrength:    p.get('cv-shadow-strength') as number,
+            outerGlowEnabled:  p.get('cv-outer-glow-enabled') as boolean,
+            outerGlowSize:     p.get('cv-outer-glow-size') as number,
+            outerGlowColor:    p.get('cv-outer-glow-color') as Color,
+            outerGlowOpacity:  p.get('cv-outer-glow-opacity') as number,
+            outerGlowStrength: p.get('cv-outer-glow-strength') as number,
+            innerGlowEnabled:  p.get('cv-inner-glow-enabled') as boolean,
+            innerGlowSize:     p.get('cv-inner-glow-size') as number,
+            innerGlowColor:    p.get('cv-inner-glow-color') as Color,
+            innerGlowOpacity:  p.get('cv-inner-glow-opacity') as number,
+            innerGlowStrength: p.get('cv-inner-glow-strength') as number,
+        };
+    }
+    if (layer.type === 'fill-extrusion') {
+        const p = (layer as FillExtrusionStyleLayer).paint;
+        return {
+            blendMode:         (p.get('cv-blend-mode') as string) || 'normal',
+            shadowEnabled:     p.get('cv-shadow-enabled') as boolean,
+            shadowSize:        p.get('cv-shadow-size') as number,
+            shadowDist:        p.get('cv-shadow-distance') as number,
+            shadowAngle:       p.get('cv-shadow-angle') as number,
+            shadowColor:       p.get('cv-shadow-color') as Color,
+            shadowOpacity:     p.get('cv-shadow-opacity') as number,
+            shadowStrength:    p.get('cv-shadow-strength') as number,
+            outerGlowEnabled:  p.get('cv-outer-glow-enabled') as boolean,
+            outerGlowSize:     p.get('cv-outer-glow-size') as number,
+            outerGlowColor:    p.get('cv-outer-glow-color') as Color,
+            outerGlowOpacity:  p.get('cv-outer-glow-opacity') as number,
+            outerGlowStrength: p.get('cv-outer-glow-strength') as number,
+            innerGlowEnabled:  p.get('cv-inner-glow-enabled') as boolean,
+            innerGlowSize:     p.get('cv-inner-glow-size') as number,
+            innerGlowColor:    p.get('cv-inner-glow-color') as Color,
+            innerGlowOpacity:  p.get('cv-inner-glow-opacity') as number,
+            innerGlowStrength: p.get('cv-inner-glow-strength') as number,
+        };
+    }
+    if (layer.type === 'symbol') {
+        const p = (layer as SymbolStyleLayer).paint;
+        return {
+            blendMode:         (p.get('cv-blend-mode') as string) || 'normal',
+            shadowEnabled:     p.get('cv-shadow-enabled') as boolean,
+            shadowSize:        p.get('cv-shadow-size') as number,
+            shadowDist:        p.get('cv-shadow-distance') as number,
+            shadowAngle:       p.get('cv-shadow-angle') as number,
+            shadowColor:       p.get('cv-shadow-color') as Color,
+            shadowOpacity:     p.get('cv-shadow-opacity') as number,
+            shadowStrength:    p.get('cv-shadow-strength') as number,
+            outerGlowEnabled:  p.get('cv-outer-glow-enabled') as boolean,
+            outerGlowSize:     p.get('cv-outer-glow-size') as number,
+            outerGlowColor:    p.get('cv-outer-glow-color') as Color,
+            outerGlowOpacity:  p.get('cv-outer-glow-opacity') as number,
+            outerGlowStrength: p.get('cv-outer-glow-strength') as number,
+            innerGlowEnabled:  p.get('cv-inner-glow-enabled') as boolean,
+            innerGlowSize:     p.get('cv-inner-glow-size') as number,
+            innerGlowColor:    p.get('cv-inner-glow-color') as Color,
+            innerGlowOpacity:  p.get('cv-inner-glow-opacity') as number,
+            innerGlowStrength: p.get('cv-inner-glow-strength') as number,
+        };
+    }
+    // ── Shadow + outer-glow (no inner-glow): line ─────────────────────────────
+    if (layer.type === 'line') {
+        const p = (layer as LineStyleLayer).paint;
+        return {
+            blendMode:         (p.get('cv-blend-mode') as string) || 'normal',
+            shadowEnabled:     p.get('cv-shadow-enabled') as boolean,
+            shadowSize:        p.get('cv-shadow-size') as number,
+            shadowDist:        p.get('cv-shadow-distance') as number,
+            shadowAngle:       p.get('cv-shadow-angle') as number,
+            shadowColor:       p.get('cv-shadow-color') as Color,
+            shadowOpacity:     p.get('cv-shadow-opacity') as number,
+            shadowStrength:    p.get('cv-shadow-strength') as number,
+            outerGlowEnabled:  p.get('cv-outer-glow-enabled') as boolean,
+            outerGlowSize:     p.get('cv-outer-glow-size') as number,
+            outerGlowColor:    p.get('cv-outer-glow-color') as Color,
+            outerGlowOpacity:  p.get('cv-outer-glow-opacity') as number,
+            outerGlowStrength: p.get('cv-outer-glow-strength') as number,
+            innerGlowEnabled:  false,
+            innerGlowSize:     0,
+            innerGlowColor:    Color.transparent,
+            innerGlowOpacity:  0,
+            innerGlowStrength: 0,
+        };
+    }
+    // ── Blend-mode only: heatmap, raster ──────────────────────────────────────
+    if (layer.type === 'heatmap') {
+        const blendMode = ((layer as HeatmapStyleLayer).paint.get('cv-blend-mode') as string) || 'normal';
+        return blendOnlyValues(blendMode);
+    }
+    // raster (and any future blend-only type)
+    const blendMode = ((layer as RasterStyleLayer).paint.get('cv-blend-mode') as string) || 'normal';
+    return blendOnlyValues(blendMode);
 }
 
 // ─── Internal types ───────────────────────────────────────────────────────────
@@ -217,23 +335,15 @@ export class EffectsRenderer {
     /**
      * Returns true if this layer has at least one cv-* effect enabled.
      * Called from Painter.renderLayer() to skip all overhead for plain layers.
-     * Inner glow is fill-only (no enclosed area on lines).
      */
-    hasEffects(layer: FillStyleLayer | LineStyleLayer): boolean {
+    hasEffects(layer: CvEffectsLayer): boolean {
         if (!this._programs) return false;
-        if (isFillStyleLayer(layer)) {
-            return !!(
-                layer.paint.get('cv-blend-mode') !== 'normal' ||
-                layer.paint.get('cv-shadow-enabled') ||
-                layer.paint.get('cv-outer-glow-enabled') ||
-                layer.paint.get('cv-inner-glow-enabled')
-            );
-        }
-        // LineStyleLayer — no inner glow
+        const cv = extractCvEffectValues(layer);
         return !!(
-            layer.paint.get('cv-blend-mode') !== 'normal' ||
-            layer.paint.get('cv-shadow-enabled') ||
-            layer.paint.get('cv-outer-glow-enabled')
+            cv.blendMode !== 'normal' ||
+            cv.shadowEnabled ||
+            cv.outerGlowEnabled ||
+            cv.innerGlowEnabled
         );
     }
 
@@ -254,10 +364,10 @@ export class EffectsRenderer {
     }
 
     /**
-     * Composites shadow, glow, and the original fill onto the default framebuffer.
-     * Called immediately after drawFill() / drawLine() returns.
+     * Composites shadow, glow, and the original layer onto the default framebuffer.
+     * Called immediately after the layer draw function returns.
      */
-    composite(painter: Painter, layer: FillStyleLayer | LineStyleLayer): void {
+    composite(painter: Painter, layer: CvEffectsLayer): void {
         const {_context: ctx, _gl: gl, _programs: prog} = this;
         if (!prog) return;
 

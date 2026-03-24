@@ -1817,7 +1817,7 @@ export class Style extends Evented {
 
         for (const layerID of this._order) {
             const styleLayer = this._layers[layerID];
-            if (styleLayer.type !== 'symbol') continue;
+            if (!styleLayer || styleLayer.type !== 'symbol') continue;
 
             if (!layerTiles[styleLayer.source]) {
                 const tileManager = this.tileManagers[styleLayer.source];
