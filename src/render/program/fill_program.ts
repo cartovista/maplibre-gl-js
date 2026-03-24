@@ -4,6 +4,7 @@ import {
     Uniform1f,
     Uniform2f,
     Uniform3f,
+    UniformColor,
 } from '../uniform_binding';
 import {extend} from '../../util/util';
 
@@ -12,9 +13,18 @@ import type {UniformValues, UniformLocations} from '../uniform_binding';
 import type {Context} from '../../gl/context';
 import type {CrossfadeParameters} from '../../style/evaluation_parameters';
 import type {Tile} from '../../tile/tile';
+import type {FillStyleLayer} from '../../style/style_layer/fill_style_layer';
 
 export type FillUniformsType = {
     'u_fill_translate': Uniform2f;
+};
+
+export type FillGradientUniformsType = {
+    'u_fill_translate': Uniform2f;
+    'u_color_start':    UniformColor;
+    'u_color_end':      UniformColor;
+    'u_angle':          Uniform1f;
+    'u_radial':         Uniform1f;
 };
 
 export type FillOutlineUniformsType = {
@@ -47,6 +57,14 @@ export type FillOutlinePatternUniformsType = {
 
 const fillUniforms = (context: Context, locations: UniformLocations): FillUniformsType => ({
     'u_fill_translate': new Uniform2f(context, locations.u_fill_translate)
+});
+
+const fillGradientUniforms = (context: Context, locations: UniformLocations): FillGradientUniformsType => ({
+    'u_fill_translate': new Uniform2f(context, locations.u_fill_translate),
+    'u_color_start':    new UniformColor(context, locations.u_color_start),
+    'u_color_end':      new UniformColor(context, locations.u_color_end),
+    'u_angle':          new Uniform1f(context, locations.u_angle),
+    'u_radial':         new Uniform1f(context, locations.u_radial),
 });
 
 const fillPatternUniforms = (context: Context, locations: UniformLocations): FillPatternUniformsType => ({
@@ -91,6 +109,25 @@ const fillUniformValues = (translate: [number, number]): UniformValues<FillUnifo
     'u_fill_translate': translate,
 });
 
+const fillGradientUniformValues = (
+    layer: FillStyleLayer,
+    translate: [number, number]
+): UniformValues<FillGradientUniformsType> => {
+    const gradientType  = layer.paint.get('cv-fill-gradient-type');
+    const startColor    = layer.paint.get('cv-fill-gradient-start-color');
+    const endColor      = layer.paint.get('cv-fill-gradient-end-color');
+    const angleDeg      = layer.paint.get('cv-fill-gradient-angle');
+    const angleRad      = angleDeg * Math.PI / 180;
+    const isRadial      = gradientType === 'radial';
+    return {
+        'u_fill_translate': translate,
+        'u_color_start':    startColor,
+        'u_color_end':      endColor,
+        'u_angle':          angleRad,
+        'u_radial':         isRadial ? 1.0 : 0.0,
+    };
+};
+
 const fillOutlineUniformValues = (drawingBufferSize: [number, number], translate: [number, number]): UniformValues<FillOutlineUniformsType> => ({
     'u_world': drawingBufferSize,
     'u_fill_translate': translate,
@@ -111,10 +148,12 @@ const fillOutlinePatternUniformValues = (
 
 export {
     fillUniforms,
+    fillGradientUniforms,
     fillPatternUniforms,
     fillOutlineUniforms,
     fillOutlinePatternUniforms,
     fillUniformValues,
+    fillGradientUniformValues,
     fillPatternUniformValues,
     fillOutlineUniformValues,
     fillOutlinePatternUniformValues

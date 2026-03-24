@@ -1,0 +1,2 @@
+// This file is generated. Edit build/generate-shaders.ts, then run `npm run codegen`.
+export default 'uniform vec4 u_color_start;uniform vec4 u_color_end;uniform float u_angle;uniform float u_radial;in vec2 v_uv;void main(){float t;if(u_radial>0.5){t=clamp(length(v_uv-vec2(0.5))*2.0,0.0,1.0);}else{t=clamp(dot(v_uv-vec2(0.5),vec2(cos(u_angle),sin(u_angle)))+0.5,0.0,1.0);}vec4 c=mix(u_color_start,u_color_end,t);fragColor=vec4(c.rgb*c.a,c.a);\n#ifdef OVERDRAW_INSPECTOR\nfragColor=vec4(1.0);\n#endif\n}';

@@ -1,0 +1,9 @@
+import {createLayout} from '../../util/struct_array';
+
+const layout = createLayout([
+    {name: 'a_bounds_min', components: 2, type: 'Float32'},
+    {name: 'a_bounds_max', components: 2, type: 'Float32'},
+], 4);
+
+export default layout;
+export const {members, size, alignment} = layout;

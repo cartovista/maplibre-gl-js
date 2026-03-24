@@ -77,6 +77,16 @@ map.on('load', () => {
         data: 'counties-us.geojson',
     });
 
+    // Separate LineString source for county borders — derived from the polygon
+    // rings but with shared edges de-duplicated and stitched into polylines.
+    // Using a dedicated line source avoids the tile-boundary artefacts that
+    // appear when a 'line' layer is applied directly to a polygon source
+    // (geojson-vt closes clipped rings with tile-edge segments).
+    map.addSource('county-borders', {
+        type: 'geojson',
+        data: 'county-borders.geojson',
+    });
+
     map.addLayer({
         id: 'states-fill',
         type: 'fill',
@@ -117,12 +127,14 @@ map.on('load', () => {
         },
     });
 
+    // counties-line is added last so it always renders on top of the fill.
+    // Uses the dedicated LineString source so tile-boundary artefacts don't appear.
     map.addLayer({
         id: 'counties-line',
         type: 'line',
-        source: 'counties',
+        source: 'county-borders',
         paint: {
-            'line-color': '#808080',
+            'line-color': 'rgba(210,210,210,1)',
             'line-width': 1,
             'cv-blend-mode':          'normal',
             'cv-shadow-enabled':       false,
@@ -141,6 +153,27 @@ map.on('load', () => {
     });
 
     initLayers(map, [
+        {
+            id: 'counties-line',
+            label: 'County Borders (Line)',
+            type: 'line',
+            effects: { blend: true, shadow: true, outerGlow: true, innerGlow: false },
+            defaults: {
+                'cv-blend-mode':          'normal',
+                'cv-shadow-enabled':       false,
+                'cv-shadow-color':         '#000000',
+                'cv-shadow-opacity':       0.6,
+                'cv-shadow-size':          6,
+                'cv-shadow-strength':      1.0,
+                'cv-shadow-distance':      4,
+                'cv-shadow-angle':         45,
+                'cv-outer-glow-enabled':   false,
+                'cv-outer-glow-color':     '#ffcc00',
+                'cv-outer-glow-opacity':   0.8,
+                'cv-outer-glow-size':      8,
+                'cv-outer-glow-strength':  1.0,
+            },
+        },
         {
             id: 'states-fill',
             label: 'US Counties (Fill)',
@@ -168,27 +201,6 @@ map.on('load', () => {
             },
         },
         {
-            id: 'counties-line',
-            label: 'County Borders (Line)',
-            type: 'line',
-            effects: { blend: true, shadow: true, outerGlow: true, innerGlow: false },
-            defaults: {
-                'cv-blend-mode':          'normal',
-                'cv-shadow-enabled':       false,
-                'cv-shadow-color':         '#000000',
-                'cv-shadow-opacity':       0.6,
-                'cv-shadow-size':          6,
-                'cv-shadow-strength':      1.0,
-                'cv-shadow-distance':      4,
-                'cv-shadow-angle':         45,
-                'cv-outer-glow-enabled':   false,
-                'cv-outer-glow-color':     '#ffcc00',
-                'cv-outer-glow-opacity':   0.8,
-                'cv-outer-glow-size':      8,
-                'cv-outer-glow-strength':  1.0,
-            },
-        },
-        {
             id: 'here-basemap',
             label: 'HERE Road Lite (Basemap)',
             type: 'raster',
@@ -198,7 +210,7 @@ map.on('load', () => {
     ]);
 
     addFpsCounter(map);
-    addBaselineToggle(map, ['states-fill', 'counties-line']);
+    addBaselineToggle(map, ['counties-line', 'states-fill']);
 });
 </script>
 </body>

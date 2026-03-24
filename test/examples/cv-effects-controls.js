@@ -12,6 +12,13 @@ let _selectedId = null;
 let _layerListEl = null;
 let _propContentEl = null;
 let _savedEffectValues = null;
+// Stores original expressions when the user overrides an expression-based colour.
+// Key: "layerId::propKey"  Value: original expression
+const _exprSavedValues = {};
+
+// ─── Pickr color picker ────────────────────────────────────────────────────────
+let _pickrReady = null;        // Promise<Pickr> resolved once the library loads
+const _activePickrs = [];      // All live Pickr instances (destroyed on panel rebuild)
 
 // ─── CSS ──────────────────────────────────────────────────────────────────────
 
@@ -277,18 +284,75 @@ html, body {
   text-align: right;
 }
 
-.cv-prop-color {
+/* ── Select control ── */
+.cv-prop-select {
+  flex: 1;
+  background: #1e293b;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+}
+.cv-prop-select:hover { border-color: #64748b; }
+
+/* ── Color swatch trigger (Pickr) ── */
+.cv-prop-color-swatch {
   width: 32px;
   height: 22px;
   border-radius: 4px;
-  border: 1px solid #334155;
+  border: 1px solid #475569;
   cursor: pointer;
-  padding: 2px;
-  background: transparent;
+  padding: 0;
   flex-shrink: 0;
+  outline: none;
+  transition: border-color 0.15s;
 }
-.cv-prop-color::-webkit-color-swatch-wrapper { padding: 0; }
-.cv-prop-color::-webkit-color-swatch { border: none; border-radius: 3px; }
+.cv-prop-color-swatch:hover { border-color: #64748b; }
+
+/* ── Pickr nano dark overrides ── */
+.pcr-app {
+  background: #1e293b !important;
+  border: 1px solid #334155 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55) !important;
+  font-family: 'Poppins', system-ui, sans-serif !important;
+}
+.pcr-app[data-theme='nano'] { width: 220px !important; }
+
+.pcr-app .pcr-interaction {
+  padding: 8px 8px 6px !important;
+  gap: 4px !important;
+}
+.pcr-app .pcr-interaction input {
+  background: #0f172a !important;
+  color: #e2e8f0 !important;
+  border: 1px solid #334155 !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+  font-size: 10px !important;
+  font-family: ui-monospace, monospace !important;
+}
+.pcr-app .pcr-interaction input:focus {
+  border-color: #3b82f6 !important;
+  outline: none !important;
+}
+.pcr-app .pcr-interaction label {
+  color: #64748b !important;
+  font-size: 9px !important;
+  font-family: 'Poppins', system-ui, sans-serif !important;
+}
+.pcr-app .pcr-color-preview {
+  border-radius: 4px !important;
+  border: 1px solid #334155 !important;
+}
+.pcr-app .pcr-selection .pcr-picker {
+  border: 2px solid #fff !important;
+}
+.pcr-app .pcr-slider { border-radius: 4px !important; }
 
 .cv-prop-select {
   width: 100%;
@@ -344,6 +408,38 @@ html, body {
   user-select: none;
 }
 
+/* ── Expression colour override row ── */
+.cv-prop-expr-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.cv-prop-expr-override {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-size: 10px;
+  color: #64748b;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.cv-prop-expr-override label {
+  cursor: pointer;
+  color: #64748b;
+}
+
+.cv-prop-expr-override input[type=checkbox] {
+  width: 12px;
+  height: 12px;
+  accent-color: #3b82f6;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 /* ── FPS overlay ── */
 .cv-fps {
   position: fixed;
@@ -375,6 +471,58 @@ html, body {
   transition: background 0.2s;
 }
 .cv-baseline-btn:hover { background: #1e293b; }
+
+/* ── Zoom + scale bar (centered bottom of map) ── */
+.cv-zoom-scale {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: rgba(15,23,42,0.85);
+  border: 1px solid #334155;
+  border-radius: 4px;
+  color: #e2e8f0;
+  font: 11px ui-monospace, monospace;
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.cv-zoom-scale__zoom,
+.cv-zoom-scale__dist {
+  padding: 4px 8px;
+}
+
+.cv-zoom-scale__sep {
+  width: 1px;
+  align-self: stretch;
+  background: #334155;
+}
+
+.cv-zoom-scale__bar-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+}
+
+.cv-zoom-scale__bar {
+  height: 3px;
+  background: #e2e8f0;
+  border-radius: 1px;
+  /* width set dynamically */
+}
+
+.cv-zoom-scale__bar-label {
+  font-size: 10px;
+  color: #94a3b8;
+  line-height: 1;
+}
 `;
 
 // ─── Inline SVG icons ─────────────────────────────────────────────────────────
@@ -406,6 +554,11 @@ const PAINT_SCHEMA = {
     fill: [
         { key: 'fill-color',   ctrl: 'color',  label: 'Fill Color', fallback: '#4a90d9' },
         { key: 'fill-opacity', ctrl: 'slider', label: 'Opacity', fallback: 1, min: 0, max: 1, step: 0.01 },
+        // CV-EFFECTS gradient controls
+        { key: 'cv-fill-gradient-type',        ctrl: 'select', label: 'Gradient',    fallback: 'none',     options: ['none', 'linear', 'radial'] },
+        { key: 'cv-fill-gradient-start-color', ctrl: 'color',  label: 'Start Color', fallback: '#0771D0',  showWhen: { prop: 'cv-fill-gradient-type', notValues: ['none'] } },
+        { key: 'cv-fill-gradient-end-color',   ctrl: 'color',  label: 'End Color',   fallback: '#55A7F1',  showWhen: { prop: 'cv-fill-gradient-type', notValues: ['none'] } },
+        { key: 'cv-fill-gradient-angle',       ctrl: 'slider', label: 'Angle',       fallback: 90, min: 0, max: 360, step: 1, suffix: '°', showWhen: { prop: 'cv-fill-gradient-type', values: ['linear'] } },
     ],
     line: [
         { key: 'line-color',     ctrl: 'color',  label: 'Color',     fallback: '#4a90d9' },
@@ -458,6 +611,141 @@ const BLEND_OPTIONS = [
     ['add','Add'],['lighten','Lighten'],['overlay','Overlay'],['hardlight','Hard Light'],
 ];
 
+// ─── Pickr helpers ────────────────────────────────────────────────────────────
+
+function _ensurePickr() {
+    if (_pickrReady) return _pickrReady;
+    _pickrReady = new Promise((resolve) => {
+        if (window.Pickr) { resolve(window.Pickr); return; }
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://cdn.jsdelivr.net/npm/@simonwep/pickr@1.9.1/dist/themes/nano.min.css';
+        document.head.appendChild(link);
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/@simonwep/pickr@1.9.1/dist/pickr.min.js';
+        script.onload = () => resolve(window.Pickr);
+        document.head.appendChild(script);
+    });
+    return _pickrReady;
+}
+
+function _destroyPickrs() {
+    while (_activePickrs.length) {
+        const p = _activePickrs.pop();
+        try { p.destroyAndRemove(); } catch (_) {}
+    }
+}
+
+/** Convert a Pickr Color to a CSS rgba() string. */
+function _pickrToCSS(color) {
+    const [r, g, b, a] = color.toRGBA();
+    return `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${Math.round(a * 1000) / 1000})`;
+}
+
+/** Create and register a Pickr instance on a swatch button. */
+function _createPickr(swatchEl, initVal, onChange) {
+    _ensurePickr().then((Pickr) => {
+        if (!swatchEl.isConnected) return;   // panel was replaced while Pickr loaded
+        const pickr = Pickr.create({
+            el: swatchEl,
+            useAsButton: true,
+            theme: 'nano',
+            default: initVal || '#888888',
+            components: {
+                preview: true,
+                opacity: true,
+                hue: true,
+                interaction: { hex: true, rgba: true, input: true, save: false },
+            },
+        });
+        _activePickrs.push(pickr);
+        pickr.on('change', (color) => onChange(_pickrToCSS(color)));
+    });
+}
+
+// ─── Zoom + scale overlay (bottom-centre of map) ─────────────────────────────
+
+function _addZoomScaleBar(map) {
+    const container = map.getContainer();
+
+    const wrap = document.createElement('div');
+    wrap.className = 'cv-zoom-scale';
+
+    const zoomEl = document.createElement('span');
+    zoomEl.className = 'cv-zoom-scale__zoom';
+
+    const sep1 = document.createElement('span');
+    sep1.className = 'cv-zoom-scale__sep';
+
+    // Scale bar: a visual bar + label
+    const barWrap = document.createElement('div');
+    barWrap.className = 'cv-zoom-scale__bar-wrap';
+    const bar = document.createElement('div');
+    bar.className = 'cv-zoom-scale__bar';
+    const barLabel = document.createElement('div');
+    barLabel.className = 'cv-zoom-scale__bar-label';
+    barWrap.appendChild(bar);
+    barWrap.appendChild(barLabel);
+
+    const sep2 = document.createElement('span');
+    sep2.className = 'cv-zoom-scale__sep';
+
+    const distEl = document.createElement('span');
+    distEl.className = 'cv-zoom-scale__dist';
+
+    wrap.appendChild(zoomEl);
+    wrap.appendChild(sep1);
+    wrap.appendChild(barWrap);
+    wrap.appendChild(sep2);
+    wrap.appendChild(distEl);
+    container.appendChild(wrap);
+
+    const TARGET_PX = 80; // desired scale bar width in pixels
+
+    function _niceMeters(m) {
+        // Round to the nearest "nice" number for display
+        const steps = [1,2,5,10,20,50,100,200,500,1000,2000,5000,10000,20000,50000];
+        for (let i = steps.length - 1; i >= 0; i--) {
+            if (steps[i] <= m) return steps[i];
+        }
+        return 1;
+    }
+
+    function update() {
+        const zoom = map.getZoom();
+        zoomEl.textContent = `Zoom ${zoom.toFixed(2)}`;
+
+        // Measure real-world distance of TARGET_PX pixels at map centre
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+        const cy = h / 2;
+        const cx = w / 2;
+        const ll0 = map.unproject([cx - TARGET_PX / 2, cy]);
+        const ll1 = map.unproject([cx + TARGET_PX / 2, cy]);
+        const meters = ll0.distanceTo(ll1);
+
+        const nice = _niceMeters(meters);
+        const ratio = nice / meters;                   // fraction of TARGET_PX
+        const barPx = Math.round(TARGET_PX * ratio);
+
+        bar.style.width = `${barPx}px`;
+
+        let label, dist;
+        if (nice >= 1000) {
+            label = `${nice / 1000} km`;
+            dist  = `${(meters / 1000).toFixed(2)} km`;
+        } else {
+            label = `${nice} m`;
+            dist  = `${Math.round(meters)} m`;
+        }
+        barLabel.textContent = label;
+        distEl.textContent   = dist;
+    }
+
+    map.on('move', update);
+    update();
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
@@ -469,6 +757,7 @@ export function injectStyles() {
     el.id = 'cv-effects-styles';
     el.textContent = CSS;
     document.head.appendChild(el);
+    _ensurePickr(); // start loading Pickr immediately so it's ready by first interaction
 }
 
 /**
@@ -521,6 +810,9 @@ export function initLayers(map, layers) {
     _layers = layers;
     _renderLayerList();
     if (layers.length > 0) _selectLayer(layers[0].id);
+
+    // Zoom level + scale bar, centred at the bottom of the map
+    _addZoomScaleBar(map);
 }
 
 /**
@@ -643,6 +935,7 @@ function _renderPropPanel(layerId) {
     const layer = _layers.find(l => l.id === layerId);
     if (!layer) { _propContentEl.innerHTML = '<p class="cv-prop-placeholder">Layer not found.</p>'; return; }
 
+    _destroyPickrs();       // remove old Pickr popovers before replacing the DOM
     _propContentEl.innerHTML = '';
 
     // Header
@@ -654,10 +947,11 @@ function _renderPropPanel(layerId) {
     const d = layer.defaults || {};
     const { blend, shadow, outerGlow, innerGlow } = layer.effects;
 
+    if (blend)     _propContentEl.appendChild(_buildBlendSection(layer, d));
+
     const paintSection = _buildPaintSection(layer);
     if (paintSection) _propContentEl.appendChild(paintSection);
 
-    if (blend)     _propContentEl.appendChild(_buildBlendSection(layer, d));
     if (shadow)    _propContentEl.appendChild(_buildShadowSection(layer, d));
     if (outerGlow) _propContentEl.appendChild(_buildGlowSection(layer, d, 'outer'));
     if (innerGlow) _propContentEl.appendChild(_buildGlowSection(layer, d, 'inner'));
@@ -742,39 +1036,183 @@ function _buildPaintSection(layer) {
     if (!schema || schema.length === 0) return null;
 
     return _buildCollapsible(`${layer.id}-paint`, 'Paint', _iconPaint, true, c => {
-        schema.forEach(({ key, ctrl, label, fallback, min, max, step, suffix }) => {
-            const { value, isExpr } = _getPaintVal(layer.id, key);
+        // Map from paint property key → DOM row element, for showWhen toggling.
+        const rowEls = {};
 
-            if (ctrl === 'color') {
-                if (isExpr) {
-                    // Multi-value expression — a single picker would be misleading
-                    c.appendChild(_exprRowEl(label));
+        schema.forEach(({ key, ctrl, label, fallback, min, max, step, suffix, options, showWhen }) => {
+            const { value, isExpr } = _getPaintVal(layer.id, key);
+            let rowEl;
+
+            if (ctrl === 'select') {
+                const curVal = (typeof value === 'string') ? value : (fallback ?? 'none');
+                rowEl = _selectRowEl(label, key, layer.id, options ?? [], curVal, (newVal) => {
+                    // Re-evaluate visibility of all rows that have a showWhen condition.
+                    schema.forEach(({ key: k, showWhen: sw }) => {
+                        if (!sw || !rowEls[k]) return;
+                        rowEls[k].style.display = _evalShowWhen(sw, layer.id) ? '' : 'none';
+                    });
+                });
+            } else if (ctrl === 'color') {
+                const storeKey = `${layer.id}::${key}`;
+                if (isExpr || storeKey in _exprSavedValues) {
+                    const expr = isExpr ? value : _exprSavedValues[storeKey];
+                    rowEl = _exprColorRowEl(label, key, layer.id, expr, fallback ?? '#888888');
                 } else {
                     const hex = _toHex(typeof value === 'string' ? value : null) ?? fallback ?? '#888888';
-                    c.appendChild(_colorRowEl(label, key, layer.id, hex));
+                    rowEl = _colorRowEl(label, key, layer.id, hex);
                 }
             } else {
                 // Sliders: use fallback for expression values but still allow override
                 const numVal = (typeof value === 'number') ? value : fallback;
-                c.appendChild(_sliderRowEl(label, key, layer.id, min, max, step, numVal, suffix ?? '', 1, isExpr));
+                rowEl = _sliderRowEl(label, key, layer.id, min, max, step, numVal, suffix ?? '', 1, isExpr);
             }
+
+            // Apply initial showWhen visibility.
+            if (showWhen) {
+                rowEl.style.display = _evalShowWhen(showWhen, layer.id) ? '' : 'none';
+            }
+
+            rowEls[key] = rowEl;
+            c.appendChild(rowEl);
         });
     });
 }
 
+/** Evaluate a showWhen condition against the current layer paint property value. */
+function _evalShowWhen(showWhen, layerId) {
+    if (!_map) return true;
+    const cur = _map.getPaintProperty(layerId, showWhen.prop) ?? 'none';
+    if (showWhen.values)    return showWhen.values.includes(cur);
+    if (showWhen.notValues) return !showWhen.notValues.includes(cur);
+    return true;
+}
+
 // ─── Private: UI element factories ───────────────────────────────────────────
 
-function _exprRowEl(label) {
+function _exprColorRowEl(label, paintProp, layerId, origExpr, fallbackHex) {
+    const storeKey = `${layerId}::${paintProp}`;
+
+    // Has the user already overridden this expression in a previous render?
+    const alreadyOverridden = storeKey in _exprSavedValues;
+    const currentHex = alreadyOverridden
+        ? (_toHex(_getPaintVal(layerId, paintProp).value) ?? fallbackHex)
+        : fallbackHex;
+
     const row = document.createElement('div');
     row.className = 'cv-prop-row';
+
+    // Label
     const lbl = document.createElement('div');
     lbl.className = 'cv-prop-label';
     lbl.textContent = label;
+
+    // Badge + override checkbox on one line
+    const badgeRow = document.createElement('div');
+    badgeRow.className = 'cv-prop-expr-row';
+
     const badge = document.createElement('span');
     badge.className = 'cv-prop-expr-badge';
     badge.textContent = 'expression';
+
+    // Use a sibling <label for> pattern, NOT a wrapping <label>, to avoid the
+    // double-toggle bug where the click bubbles from the input to the label
+    // and the label then toggles the checkbox a second time.
+    const cbId = `cv-override-${layerId}-${paintProp}`;
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.id = cbId;
+    cb.checked = alreadyOverridden;
+
+    const overrideWrap = document.createElement('span');
+    overrideWrap.className = 'cv-prop-expr-override';
+    const overrideTxt = document.createElement('label');
+    overrideTxt.htmlFor = cbId;
+    overrideTxt.textContent = 'Override';
+    overrideWrap.appendChild(cb);
+    overrideWrap.appendChild(overrideTxt);
+
+    badgeRow.appendChild(badge);
+    badgeRow.appendChild(overrideWrap);
+
+    // Colour picker row (shown only when override is active)
+    const pickerRow = document.createElement('div');
+    pickerRow.className = 'cv-prop-ctrl';
+    pickerRow.style.display = alreadyOverridden ? '' : 'none';
+
+    const swatch = document.createElement('button');
+    swatch.type = 'button';
+    swatch.className = 'cv-prop-color-swatch';
+    swatch.style.background = currentHex;
+
+    const valEl = document.createElement('span');
+    valEl.className = 'cv-prop-value';
+    valEl.textContent = currentHex;
+
+    // Pickr is created lazily when the override row becomes visible
+    let pickrCreated = false;
+    function _ensureOverridePickr() {
+        if (pickrCreated) return;
+        pickrCreated = true;
+        _createPickr(swatch, currentHex, (cssColor) => {
+            swatch.style.background = cssColor;
+            valEl.textContent = cssColor;
+            _map.setPaintProperty(layerId, paintProp, cssColor);
+        });
+    }
+    if (alreadyOverridden) _ensureOverridePickr();
+
+    pickerRow.appendChild(swatch);
+    pickerRow.appendChild(valEl);
+
+    cb.addEventListener('change', () => {
+        if (cb.checked) {
+            _exprSavedValues[storeKey] = _getPaintVal(layerId, paintProp).value ?? origExpr;
+            pickerRow.style.display = '';
+            _ensureOverridePickr();
+            _map.setPaintProperty(layerId, paintProp, currentHex);
+        } else {
+            const saved = _exprSavedValues[storeKey] ?? origExpr;
+            delete _exprSavedValues[storeKey];
+            pickerRow.style.display = 'none';
+            _map.setPaintProperty(layerId, paintProp, saved);
+        }
+    });
+
     row.appendChild(lbl);
-    row.appendChild(badge);
+    row.appendChild(badgeRow);
+    row.appendChild(pickerRow);
+    return row;
+}
+
+function _selectRowEl(label, paintProp, layerId, options, initVal, onChange) {
+    const row = document.createElement('div');
+    row.className = 'cv-prop-row';
+
+    const lbl = document.createElement('div');
+    lbl.className = 'cv-prop-label';
+    lbl.textContent = label;
+
+    const ctrl = document.createElement('div');
+    ctrl.className = 'cv-prop-ctrl';
+
+    const sel = document.createElement('select');
+    sel.className = 'cv-prop-select';
+    options.forEach(opt => {
+        const o = document.createElement('option');
+        o.value = opt;
+        o.textContent = opt.charAt(0).toUpperCase() + opt.slice(1);
+        if (opt === initVal) o.selected = true;
+        sel.appendChild(o);
+    });
+
+    sel.addEventListener('change', () => {
+        _map.setPaintProperty(layerId, paintProp, sel.value);
+        if (onChange) onChange(sel.value);
+    });
+
+    ctrl.appendChild(sel);
+    row.appendChild(lbl);
+    row.appendChild(ctrl);
     return row;
 }
 
@@ -811,7 +1249,7 @@ function _sliderRowEl(label, paintProp, layerId, min, max, step, initVal, suffix
     return row;
 }
 
-function _colorRowEl(label, paintProp, layerId, initHex, isExpr = false) {
+function _colorRowEl(label, paintProp, layerId, initVal, isExpr = false) {
     const row = document.createElement('div');
     row.className = 'cv-prop-row';
 
@@ -822,21 +1260,22 @@ function _colorRowEl(label, paintProp, layerId, initHex, isExpr = false) {
     const ctrl = document.createElement('div');
     ctrl.className = 'cv-prop-ctrl';
 
-    const input = document.createElement('input');
-    input.type = 'color';
-    input.className = 'cv-prop-color';
-    input.value = initHex;
+    const swatch = document.createElement('button');
+    swatch.type = 'button';
+    swatch.className = 'cv-prop-color-swatch';
+    swatch.style.background = initVal || '#888888';
 
     const valEl = document.createElement('span');
     valEl.className = 'cv-prop-value';
-    valEl.textContent = initHex;
+    valEl.textContent = initVal || '';
 
-    input.addEventListener('input', () => {
-        valEl.textContent = input.value;
-        _map.setPaintProperty(layerId, paintProp, input.value);
+    _createPickr(swatch, initVal, (cssColor) => {
+        swatch.style.background = cssColor;
+        valEl.textContent = cssColor;
+        _map.setPaintProperty(layerId, paintProp, cssColor);
     });
 
-    ctrl.appendChild(input);
+    ctrl.appendChild(swatch);
     ctrl.appendChild(valEl);
     row.appendChild(lbl);
     row.appendChild(ctrl);

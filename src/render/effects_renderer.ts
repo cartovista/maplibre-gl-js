@@ -355,6 +355,12 @@ export class EffectsRenderer {
         const W = painter.width;
         const H = painter.height;
         this.ensureFBOs(W, H);
+        // Force alpha-write mode: MapLibre's opaque render pass uses ColorMode.unblended
+        // which sets colorMask(R,G,B,false) — the alpha channel is not written to the
+        // framebuffer.  When rendering into the cv-effects FBO we need all four channels
+        // so that the compositor can read correct alpha values.  cvCaptureMode makes
+        // colorModeForRenderPass() return alphaBlended instead of unblended.
+        painter.cvCaptureMode = true;
         this._context.bindFramebuffer.set(this._layerCaptureFBO.framebuffer);
         this._context.viewport.set([0, 0, W, H]);
         // Clear colour and stencil.  Painter.renderLayer() will call
@@ -490,6 +496,9 @@ export class EffectsRenderer {
             this._blitLayer(prog.layer, compTex);
             this._restoreBlend();
         }
+
+        // Restore alpha-write override so subsequent layers render normally.
+        painter.cvCaptureMode = false;
 
         // Invalidate MapLibre's program cache so it re-binds on the next draw
         ctx.program.set(null);

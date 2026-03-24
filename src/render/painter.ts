@@ -123,6 +123,9 @@ export class Painter {
     depthRangeFor3D: DepthRangeType;
     opaquePassCutoff: number;
     renderPass: RenderPass;
+    /** When true, colorModeForRenderPass returns alphaBlended instead of unblended so the
+     *  cv-effects FBO capture receives correct alpha values even for opaque fills. */
+    cvCaptureMode: boolean;
     currentLayer: number;
     currentStencilSource: string;
     nextStencilID: number;
@@ -146,6 +149,7 @@ export class Painter {
         this._tileTextures = {};
         this.terrainFacilitator = {dirty: true, matrix: mat4.identity(new Float64Array(16) as any), renderTime: 0};
 
+        this.cvCaptureMode = false;
         this.setup();
         // CV-EFFECTS:
         this.effectsRenderer = new EffectsRenderer(this.context);
@@ -457,7 +461,7 @@ export class Painter {
             const a = 1 / numOverdrawSteps;
 
             return new ColorMode([gl.CONSTANT_COLOR, gl.ONE], new Color(a, a, a, 0), [true, true, true, true]);
-        } else if (this.renderPass === 'opaque') {
+        } else if (this.renderPass === 'opaque' && !this.cvCaptureMode) {
             return ColorMode.unblended;
         } else {
             return ColorMode.alphaBlended;
@@ -721,8 +725,15 @@ export class Painter {
                 drawLine(painter, tileManager, layer, coords, renderOptions);
             }
         } else if (isFillStyleLayer(layer)) {
-            // CV-EFFECTS: wrap with FBO capture when effects are active
+            // CV-EFFECTS: wrap with FBO capture when effects are active.
+            // We restrict capture to the translucent pass so the composited fill
+            // lands in the correct z-order (above background/basemap layers).
+            // Opaque-pass invocations are intentionally skipped; cvCaptureMode on
+            // the painter makes drawFill ignore its own pass guard so constant-
+            // alpha fills (which MapLibre would normally draw in the opaque pass)
+            // still render into the FBO during the translucent pass.
             if (this.effectsRenderer.hasEffects(layer)) {
+                if (this.renderPass !== 'translucent') return;
                 const savedStencilSource = this.currentStencilSource;
                 this.effectsRenderer.beginCapture(this);
                 // Reset currentStencilSource to force re-render of tile clipping

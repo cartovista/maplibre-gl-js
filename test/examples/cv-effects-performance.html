@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>CV-EFFECTS — Performance (LA Buildings, 1.4M features)</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="CV-EFFECTS performance testbed using 1.46M Los Angeles building footprints from Overture Maps (PMTiles). Measures frame rate with shadow, outer glow, inner glow, and blend mode enabled on a large fill layer backed by a vector tile source.">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="stylesheet" href="../../dist/maplibre-gl.css" />
+    <script src="../../dist/maplibre-gl-dev.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pmtiles@3/dist/pmtiles.js"></script>
+</head>
+<body>
+<!--
+  CV-EFFECTS: Performance Testbed — Fill Layer (PMTiles / Vector source)
+  ======================================================================
+  Dataset : Overture Maps buildings, Los Angeles basin
+            ~1.46 M polygons, bbox (-118.67, 33.70, -118.15, 34.17)
+  Source  : la_buildings.pmtiles  (274 MB, z10–z16)
+            Generated with: tippecanoe --minimum-zoom=10 --maximum-zoom=16
+                            --drop-densest-as-needed --extend-zooms-if-still-dropping
+            Served via http-server on port 9968 (range-request support required):
+              npx http-server test/examples -p 9968 --cors -c-1
+  Purpose : Validate that cv-effects (shadow, glow, blend) maintain acceptable
+            frame rates on a realistic large-scale CartoVista fill layer backed
+            by an MVT/PMTiles source (not GeoJSON).
+
+  Paint properties tested:
+    cv-blend-mode         enum   normal | multiply | screen | add | lighten | overlay | hardlight
+    cv-shadow-enabled     bool
+    cv-shadow-color/opacity/size/strength/distance/angle
+    cv-outer-glow-enabled bool
+    cv-outer-glow-color/opacity/size/strength
+    cv-inner-glow-enabled bool
+    cv-inner-glow-color/opacity/size/strength
+-->
+<script type="module">
+import { injectStyles, buildShell, initLayers, addFpsCounter, addBaselineToggle } from './cv-effects-controls.js';
+
+injectStyles();
+buildShell();
+
+// Register PMTiles protocol
+const { Protocol } = window.pmtiles;
+const protocol = new Protocol();
+maplibregl.addProtocol('pmtiles', protocol.tile.bind(protocol));
+
+const map = new maplibregl.Map({
+    container: 'cv-map',
+    style: {
+        version: 8,
+        sources: {
+            'here-basemap': {
+                type: 'raster',
+                tiles: ['https://maps.hereapi.com/v3/base/mc/{z}/{x}/{y}/png?style=lite.day&lang=en&apiKey=8P_kbNDELB6ADBwC9oCoLd3Gd_C0gnan8TCvoNT1Wfg'],
+                tileSize: 256,
+            },
+            'buildings': {
+                type: 'vector',
+                url: 'pmtiles://http://localhost:9968/la_buildings.pmtiles',
+                attribution: '© <a href="https://overturemaps.org">Overture Maps Foundation</a>',
+            },
+        },
+        layers: [
+            { id: 'background', type: 'background', paint: { 'background-color': '#e8e4dc' } },
+            { id: 'here-basemap', type: 'raster', source: 'here-basemap', paint: { 'cv-blend-mode': 'normal' } },
+            {
+                id: 'la-buildings',
+                type: 'fill',
+                source: 'buildings',
+                'source-layer': 'buildings',
+                paint: {
+                    'fill-color': '#5b9bd5',
+                    'fill-opacity': 0.85,
+                    'cv-blend-mode':          'normal',
+                    'cv-shadow-enabled':       false,
+                    'cv-shadow-color':         '#000000',
+                    'cv-shadow-opacity':       0.5,
+                    'cv-shadow-size':          6,
+                    'cv-shadow-strength':      1.0,
+                    'cv-shadow-distance':      3,
+                    'cv-shadow-angle':         45,
+                    'cv-outer-glow-enabled':   false,
+                    'cv-outer-glow-color':     '#3b82f6',
+                    'cv-outer-glow-opacity':   0.8,
+                    'cv-outer-glow-size':      8,
+                    'cv-outer-glow-strength':  1.0,
+                    'cv-inner-glow-enabled':   false,
+                    'cv-inner-glow-color':     '#ffffff',
+                    'cv-inner-glow-opacity':   0.7,
+                    'cv-inner-glow-size':      5,
+                    'cv-inner-glow-strength':  1.0,
+                },
+            },
+        ],
+    },
+    center: [-118.243, 34.052],   // Downtown Los Angeles
+    zoom: 13,
+});
+
+map.on('load', () => {
+    initLayers(map, [
+        {
+            id: 'la-buildings',
+            label: 'LA Buildings (1.4M)',
+            type: 'fill',
+            effects: { blend: true, shadow: true, outerGlow: true, innerGlow: true },
+            defaults: {
+                'cv-blend-mode':          'normal',
+                'cv-shadow-enabled':       false,
+                'cv-shadow-color':         '#000000',
+                'cv-shadow-opacity':       0.5,
+                'cv-shadow-size':          6,
+                'cv-shadow-strength':      1.0,
+                'cv-shadow-distance':      3,
+                'cv-shadow-angle':         45,
+                'cv-outer-glow-enabled':   false,
+                'cv-outer-glow-color':     '#3b82f6',
+                'cv-outer-glow-opacity':   0.8,
+                'cv-outer-glow-size':      8,
+                'cv-outer-glow-strength':  1.0,
+                'cv-inner-glow-enabled':   false,
+                'cv-inner-glow-color':     '#ffffff',
+                'cv-inner-glow-opacity':   0.7,
+                'cv-inner-glow-size':      5,
+                'cv-inner-glow-strength':  1.0,
+            },
+        },
+        {
+            id: 'here-basemap',
+            label: 'HERE Road Lite (Basemap)',
+            type: 'raster',
+            effects: { blend: true, shadow: false, outerGlow: false, innerGlow: false },
+            defaults: { 'cv-blend-mode': 'normal' },
+        },
+    ]);
+
+    addFpsCounter(map);
+    addBaselineToggle(map, ['la-buildings']);
+});
+</script>
+</body>
+</html>

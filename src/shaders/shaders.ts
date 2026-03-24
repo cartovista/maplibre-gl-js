@@ -25,6 +25,8 @@ import debugVert from './debug.vertex.glsl.g';
 import depthVert from './depth.vertex.glsl.g';
 import fillFrag from './fill.fragment.glsl.g';
 import fillVert from './fill.vertex.glsl.g';
+import fillGradientFrag from './fill_gradient.fragment.glsl.g';
+import fillGradientVert from './fill_gradient.vertex.glsl.g';
 import fillOutlineFrag from './fill_outline.fragment.glsl.g';
 import fillOutlineVert from './fill_outline.vertex.glsl.g';
 import fillOutlinePatternFrag from './fill_outline_pattern.fragment.glsl.g';
@@ -95,6 +97,7 @@ export const shaders = {
     debug: prepare(debugFrag, debugVert),
     depth: prepare(clippingMaskFrag, depthVert),
     fill: prepare(fillFrag, fillVert),
+    fillGradient: prepare(fillGradientFrag, fillGradientVert),
     fillOutline: prepare(fillOutlineFrag, fillOutlineVert),
     fillOutlinePattern: prepare(fillOutlinePatternFrag, fillOutlinePatternVert),
     fillPattern: prepare(fillPatternFrag, fillPatternVert),

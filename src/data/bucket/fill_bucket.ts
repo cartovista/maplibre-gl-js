@@ -1,6 +1,7 @@
-import {FillLayoutArray} from '../array_types.g';
+import {FillLayoutArray, FillGradientLayoutArray} from '../array_types.g';
 
 import {members as layoutAttributes} from './fill_attributes';
+import {members as gradientAttributes} from './fill_gradient_attributes';
 import {SegmentVector} from '../segment';
 import {ProgramConfigurationSet} from '../program_configuration';
 import {LineIndexArray, TriangleIndexArray} from '../index_array_type';
@@ -45,6 +46,11 @@ export class FillBucket implements Bucket {
     layoutVertexArray: FillLayoutArray;
     layoutVertexBuffer: VertexBuffer;
 
+    // CV-EFFECTS: Per-vertex AABB (minX, minY, maxX, maxY) in tile-space.
+    // Always populated so the gradient program can be activated without a tile reload.
+    cvGradientLayoutVertexArray: FillGradientLayoutArray;
+    cvGradientVertexBuffer: VertexBuffer;
+
     indexArray: TriangleIndexArray;
     indexBuffer: IndexBuffer;
 
@@ -67,6 +73,7 @@ export class FillBucket implements Bucket {
         this.patternFeatures = [];
 
         this.layoutVertexArray = new FillLayoutArray();
+        this.cvGradientLayoutVertexArray = new FillGradientLayoutArray();
         this.indexArray = new TriangleIndexArray();
         this.indexArray2 = new LineIndexArray();
         this.programConfigurations = new ProgramConfigurationSet(options.layers, options.zoom);
@@ -153,6 +160,7 @@ export class FillBucket implements Bucket {
     upload(context: Context) {
         if (!this.uploaded) {
             this.layoutVertexBuffer = context.createVertexBuffer(this.layoutVertexArray, layoutAttributes);
+            this.cvGradientVertexBuffer = context.createVertexBuffer(this.cvGradientLayoutVertexArray, gradientAttributes, true);
             this.indexBuffer = context.createIndexBuffer(this.indexArray);
             this.indexBuffer2 = context.createIndexBuffer(this.indexArray2);
         }
@@ -163,6 +171,7 @@ export class FillBucket implements Bucket {
     destroy() {
         if (!this.layoutVertexBuffer) return;
         this.layoutVertexBuffer.destroy();
+        this.cvGradientVertexBuffer?.destroy();
         this.indexBuffer.destroy();
         this.indexBuffer2.destroy();
         this.programConfigurations.destroy();
@@ -177,10 +186,25 @@ export class FillBucket implements Bucket {
             const subdivided = subdividePolygon(polygon, canonical, subdivisionGranularity.fill.getGranularityForZoomLevel(canonical.z));
 
             const vertexArray = this.layoutVertexArray;
+            const gradientArray = this.cvGradientLayoutVertexArray;
+
+            // Compute per-polygon AABB in tile space for gradient UV normalisation.
+            // The AABB is replicated on every vertex so the gradient shader can access
+            // it without per-feature uniform uploads (one draw call for all features).
+            const verts = subdivided.verticesFlattened;
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            for (let i = 0; i < verts.length; i += 2) {
+                const x = verts[i], y = verts[i + 1];
+                if (x < minX) minX = x;
+                if (y < minY) minY = y;
+                if (x > maxX) maxX = x;
+                if (y > maxY) maxY = y;
+            }
 
             fillLargeMeshArrays(
                 (x, y) => {
                     vertexArray.emplaceBack(x, y);
+                    gradientArray.emplaceBack(minX, minY, maxX, maxY);
                 },
                 this.segments,
                 this.layoutVertexArray,

@@ -4,6 +4,7 @@ import {CullFaceMode} from '../gl/cull_face_mode';
 import {type ColorMode} from '../gl/color_mode';
 import {
     fillUniformValues,
+    fillGradientUniformValues,
     fillPatternUniformValues,
     fillOutlineUniformValues,
     fillOutlinePatternUniformValues
@@ -33,15 +34,21 @@ export function drawFill(painter: Painter, tileManager: TileManager, layer: Fill
             color.constantOr(Color.transparent).a === 1 &&
             opacity.constantOr(0) === 1) ? 'opaque' : 'translucent';
 
-    // Draw fill
-    if (painter.renderPass === pass) {
+    // Draw fill.  When cvCaptureMode is active the painter is collecting the
+    // layer into the cv-effects FBO; always draw regardless of renderPass so
+    // that constant-alpha fills (normally opaque-pass) execute during the
+    // translucent-pass capture.
+    if (painter.renderPass === pass || painter.cvCaptureMode) {
         const depthMode = painter.getDepthModeForSublayer(
             1, painter.renderPass === 'opaque' ? DepthMode.ReadWrite : DepthMode.ReadOnly);
         drawFillTiles(painter, tileManager, layer, coords, depthMode, colorMode, false, isRenderingToTexture);
     }
 
-    // Draw stroke
-    if (painter.renderPass === 'translucent' && layer.paint.get('fill-antialias')) {
+    // Draw stroke — skip when a cv-fill-gradient is active: the gradient colour
+    // doesn't match fill-color so the antialiased outline would form a visible
+    // mismatched border around every polygon.
+    const cvGradientActive = layer.paint.get('cv-fill-gradient-type') !== 'none';
+    if (painter.renderPass === 'translucent' && layer.paint.get('fill-antialias') && !cvGradientActive) {
 
         // If we defined a different color for the fill outline, we are
         // going to ignore the bits in 0x07 and just care about the global
@@ -78,8 +85,13 @@ function drawFillTiles(
     const propertyFillTranslate = layer.paint.get('fill-translate');
     const propertyFillTranslateAnchor = layer.paint.get('fill-translate-anchor');
 
+    // CV-EFFECTS: use gradient program when a gradient type is set and not
+    // overridden by a pattern.  Gradient is never applied to the outline pass.
+    const gradientType = layer.paint.get('cv-fill-gradient-type');
+    const useGradient = !isOutline && !image && gradientType !== 'none';
+
     if (!isOutline) {
-        programName = image ? 'fillPattern' : 'fill';
+        programName = useGradient ? 'fillGradient' : (image ? 'fillPattern' : 'fill');
         drawMode = gl.TRIANGLES;
     } else {
         programName = image && !layer.getPaintProperty('fill-outline-color') ? 'fillOutlinePattern' : 'fillOutline';
@@ -118,7 +130,11 @@ function drawFillTiles(
         if (!isOutline) {
             indexBuffer = bucket.indexBuffer;
             segments = bucket.segments;
-            uniformValues = image ? fillPatternUniformValues(painter, crossfade, tile, translateForUniforms) : fillUniformValues(translateForUniforms);
+            if (useGradient) {
+                uniformValues = fillGradientUniformValues(layer, translateForUniforms);
+            } else {
+                uniformValues = image ? fillPatternUniformValues(painter, crossfade, tile, translateForUniforms) : fillUniformValues(translateForUniforms);
+            }
         } else {
             indexBuffer = bucket.indexBuffer2;
             segments = bucket.segments2;
@@ -130,9 +146,14 @@ function drawFillTiles(
 
         const stencil = painter.stencilModeForClipping(coord);
 
+        // CV-EFFECTS: pass the gradient AABB VBO as a dynamic layout buffer so
+        // the gradient vertex shader can access a_bounds_min / a_bounds_max.
+        const gradientBuffer = (useGradient && bucket.cvGradientVertexBuffer) ? bucket.cvGradientVertexBuffer : null;
+
         program.draw(painter.context, drawMode, depthMode,
             stencil, colorMode, CullFaceMode.backCCW, uniformValues, terrainData, projectionData,
             layer.id, bucket.layoutVertexBuffer, indexBuffer, segments,
-            layer.paint, painter.transform.zoom, programConfiguration);
+            layer.paint, painter.transform.zoom, programConfiguration,
+            gradientBuffer);
     }
 }
